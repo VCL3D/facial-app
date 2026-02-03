@@ -1,0 +1,116 @@
+name: "efficient_fiqa"
+platform: "tensorrt_plan"
+max_batch_size: 16
+
+# Input: face image (352x352 RGB, normalized)
+input [
+  {
+    name: "input"
+    data_type: TYPE_FP32
+    dims: [ 3, 352, 352 ]
+  }
+]
+
+# Output: quality score (scalar 0-1, higher = better)
+output [
+  {
+    name: "output"
+    data_type: TYPE_FP32
+    dims: [ 1 ]
+  }
+]
+
+# Dynamic batching configuration
+# Optimized for web app with 40-60 concurrent users @ 2s interval
+dynamic_batching {
+  # Try to batch 4 or 8 requests together for optimal throughput
+  preferred_batch_size: [ 4, 8 ]
+
+  # Wait up to 100ms to accumulate batch
+  # Balance: lower = lower latency, higher = better throughput
+  max_queue_delay_microseconds: 100000
+
+  # Allow preserving ordering for sequential requests
+  preserve_ordering: false
+}
+
+# GPU instance configuration for RTX 3060
+instance_group [
+  {
+    # Run 2 model instances in parallel for concurrency
+    count: 2
+
+    # Use GPU 0
+    kind: KIND_GPU
+    gpus: [ 0 ]
+  }
+]
+
+# Model optimization settings
+optimization {
+  # Enable CUDA graph optimization for faster inference
+  cuda {
+    graphs: true
+    busy_wait_events: false
+  }
+
+  # Memory pool settings
+  execution_accelerators {
+    gpu_execution_accelerator [ {
+      name: "tensorrt"
+      parameters {
+        key: "precision_mode"
+        value: "FP16"
+      }
+      parameters {
+        key: "max_workspace_size_bytes"
+        value: "4294967296"  # 4GB
+      }
+    }]
+  }
+}
+
+# Model versioning
+default_model_filename: "model.plan"
+version_policy: { latest { num_versions: 1 } }
+
+# Performance tuning
+# Based on RTX 3060 benchmarks: 3.8ms GPU latency, 263 qps throughput
+model_warmup [
+  {
+    name: "warmup_batch1"
+    batch_size: 1
+    inputs {
+      key: "input"
+      value: {
+        data_type: TYPE_FP32
+        dims: [ 3, 352, 352 ]
+        zero_data: true
+      }
+    }
+  },
+  {
+    name: "warmup_batch4"
+    batch_size: 4
+    inputs {
+      key: "input"
+      value: {
+        data_type: TYPE_FP32
+        dims: [ 3, 352, 352 ]
+        zero_data: true
+      }
+    }
+  },
+  {
+    name: "warmup_batch8"
+    batch_size: 8
+    inputs {
+      key: "input"
+      value: {
+        data_type: TYPE_FP32
+        dims: [ 3, 352, 352 ]
+        zero_data: true
+      }
+    }
+  }
+]

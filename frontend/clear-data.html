@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clear Data - Facial App</title>
+    <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <h1>🗑️ Clear All Data</h1>
+            <p>This will delete all recorded videos and session data.</p>
+
+            <div id="status" style="margin: 20px 0; padding: 15px; background: rgba(255,255,255,0.1); border-radius: 8px;">
+                <strong>Current Status:</strong>
+                <div id="statusText">Checking...</div>
+            </div>
+
+            <button id="clearBtn" class="btn btn-primary" style="width: 100%; margin-top: 20px;">
+                Clear All Data
+            </button>
+
+            <button onclick="window.location.href='/'" class="btn btn-secondary" style="width: 100%; margin-top: 10px;">
+                Back to Home
+            </button>
+        </div>
+    </div>
+
+    <script>
+        let openDB = null;  // #claude - Track open connection
+
+        // #claude - Auto-retry after reload if blocked
+        window.addEventListener('load', () => {
+            if (sessionStorage.getItem('clearDataRetry') === 'true') {
+                sessionStorage.removeItem('clearDataRetry');
+                console.log('🔄 Auto-retrying database deletion after reload...');
+                setTimeout(() => {
+                    document.getElementById('clearBtn').click();
+                }, 500);
+            }
+        });
+
+        async function checkStatus() {
+            const statusDiv = document.getElementById('statusText');
+            let status = [];
+
+            status.push(`localStorage keys: ${Object.keys(localStorage).length}`);
+
+            Object.keys(localStorage).forEach(key => {
+                status.push(`  - ${key}: ${localStorage.getItem(key)}`);
+            });
+
+            try {
+                const dbRequest = indexedDB.open('FacialRecordings', 1);
+                dbRequest.onsuccess = (e) => {
+                    const db = e.target.result;
+                    openDB = db;  // #claude - Store reference
+
+                    if (!db.objectStoreNames.contains('videos')) {
+                        status.push('IndexedDB: No videos table');
+                        statusDiv.innerHTML = status.join('<br>');
+                        db.close();  // #claude - Close immediately
+                        openDB = null;  // #claude
+                        return;
+                    }
+
+                    const tx = db.transaction(['videos', 'chunks'], 'readonly');
+                    const videosStore = tx.objectStore('videos');
+                    const chunksStore = tx.objectStore('chunks');
+
+                    const videosRequest = videosStore.count();
+                    const chunksRequest = chunksStore.count();
+
+                    videosRequest.onsuccess = () => {
+                        status.push(`IndexedDB videos: ${videosRequest.result}`);
+                    };
+
+                    chunksRequest.onsuccess = () => {
+                        status.push(`IndexedDB chunks: ${chunksRequest.result}`);
+                        statusDiv.innerHTML = status.join('<br>');
+                        // #claude - Close after reading
+                        db.close();
+                        openDB = null;
+                    };
+                };
+
+                dbRequest.onerror = () => {
+                    status.push('IndexedDB: Error opening');
+                    statusDiv.innerHTML = status.join('<br>');
+                };
+            } catch (err) {
+                status.push(`IndexedDB error: ${err.message}`);
+                statusDiv.innerHTML = status.join('<br>');
+            }
+        }
+
+        document.getElementById('clearBtn').addEventListener('click', async () => {
+            if (!confirm('Are you sure? This will delete ALL recorded videos and session data.')) {
+                return;
+            }
+
+            const btn = document.getElementById('clearBtn');
+            btn.disabled = true;
+            btn.textContent = 'Clearing...';
+
+            try {
+                // #claude - Close any open IndexedDB connections first
+                if (openDB) {
+                    console.log('Closing open IndexedDB connection...');
+                    openDB.close();
+                    openDB = null;
+                }
+
+                console.log('Step 1: Clearing localStorage...');
+                localStorage.clear();
+                console.log('✅ localStorage cleared');
+
+                // #claude - Wait a moment for connections to fully close
+                await new Promise(resolve => setTimeout(resolve, 100));
+
+                console.log('Step 2: Deleting IndexedDB...');
+                const deleteRequest = indexedDB.deleteDatabase('FacialRecordings');
+
+                deleteRequest.onsuccess = () => {
+                    console.log('✅ IndexedDB deleted');
+                    btn.textContent = '✅ All Data Cleared!';
+                    btn.style.background = 'green';
+
+                    setTimeout(() => {
+                        window.location.href = '/';
+                    }, 1500);
+                };
+
+                deleteRequest.onerror = (e) => {
+                    console.error('❌ Failed to delete IndexedDB:', e);
+                    alert('Failed to delete IndexedDB. Check console for details.');
+                    btn.disabled = false;
+                    btn.textContent = 'Clear All Data';
+                };
+
+                deleteRequest.onblocked = () => {
+                    console.warn('⚠️ IndexedDB deletion blocked. Trying alternative method...');  // #claude
+                    // #claude - Alternative: Clear localStorage and reload page to force close connections
+                    alert('Storage is locked by another page. Going to reload and try again...');
+                    localStorage.clear();  // #claude - Clear at least this
+                    sessionStorage.setItem('clearDataRetry', 'true');  // #claude - Mark for retry
+                    setTimeout(() => {  // #claude
+                        window.location.reload();  // #claude - Reload to close all connections
+                    }, 500);  // #claude
+                };
+
+            } catch (err) {
+                console.error('Error:', err);
+                alert('Error: ' + err.message);
+                btn.disabled = false;
+                btn.textContent = 'Clear All Data';
+            }
+        });
+
+        checkStatus();
+    </script>
+</body>
+</html>

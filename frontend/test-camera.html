@@ -1,0 +1,3488 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>Facial Data Collection - Prototype</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #1a1a1a;
+            color: #fff;
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 10px;
+            font-size: 24px;
+        }
+
+        .status {
+            text-align: center;
+            margin-bottom: 20px;
+            padding: 10px;
+            background: #2a2a2a;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+
+        .status.success { background: #1a472a; }
+        .status.error { background: #4a1a1a; }
+        .status.warning { background: #4a3a1a; }
+
+        .video-container {
+            position: relative;
+            background: #000;
+            border-radius: 12px;
+            overflow: hidden;
+            margin-bottom: 20px;
+            max-width: 300px; /* #claude v82: 4-6x smaller preview (was full width ~1200-1600px) */
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        video {
+            width: 100%;
+            height: auto; /* #claude: Maintain aspect ratio */
+            display: block;
+            background: #000;
+            object-fit: contain; /* #claude: Preserve aspect ratio, fit within container */
+            transform: scaleX(-1); /* Mirror video horizontally like selfie camera */
+            -webkit-transform: scaleX(-1); /* Safari compatibility */
+        }
+
+        .controls {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        button {
+            padding: 16px;
+            font-size: 16px;
+            font-weight: 600;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-primary {
+            background: #007aff;
+            color: white;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            background: #0051d5;
+        }
+
+        .btn-danger { /*#claude*/
+            background: #ff3b30; /*#claude*/
+            color: white; /*#claude*/
+        } /*#claude*/
+
+        .btn-danger:hover:not(:disabled) { /*#claude*/
+            background: #c7221a; /*#claude*/
+        } /*#claude*/
+
+        .btn-secondary { /*#claude*/
+            background: #2a2a2a; /*#claude*/
+            color: white; /*#claude*/
+            border: 1px solid #3a3a3a; /*#claude*/
+        } /*#claude*/
+
+        .btn-secondary:hover:not(:disabled) { /*#claude*/
+            background: #3a3a3a; /*#claude*/
+        } /*#claude*/
+
+        .info-panel {
+            background: #2a2a2a;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
+        .info-panel h3 {
+            margin-bottom: 10px;
+            font-size: 16px;
+        }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 5px 0;
+            border-bottom: 1px solid #3a3a3a;
+        }
+
+        .info-row:last-child {
+            border-bottom: none;
+        }
+
+        .pwa-warning {
+            background: #4a3a1a;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border-left: 4px solid #ff9500;
+        }
+
+        .pwa-warning h3 {
+            margin-bottom: 8px;
+            color: #ff9500;
+        }
+
+        .recording-indicator {
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            background: #ff3b30;
+            color: white;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 14px;
+            display: none;
+            animation: pulse 1.5s infinite;
+        }
+
+        .recording-indicator.active {
+            display: block;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+
+        /* AI Quality Panel Styles */
+        .ai-quality-score {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            padding: 15px;
+            background: #1a1a1a;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+
+        .score-circle {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-function: center;
+            font-size: 24px;
+            font-weight: bold;
+            background: conic-gradient(#007aff 0deg, #2a2a2a 0deg);
+            position: relative;
+            flex-shrink: 0;
+        }
+
+        .score-circle::before {
+            content: '';
+            position: absolute;
+            width: 70px;
+            height: 70px;
+            background: #2a2a2a;
+            border-radius: 50%;
+        }
+
+        .score-circle span {
+            position: relative;
+            z-index: 1;
+        }
+
+        .score-info {
+            flex: 1;
+        }
+
+        .score-level {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .score-level.good { color: #34c759; }
+        .score-level.acceptable { color: #ff9500; }
+        .score-level.poor { color: #ff3b30; }
+
+        .score-status {
+            font-size: 13px;
+            color: #888;
+        }
+    </style>
+
+    <!-- #claude v54: EBML parser for real FPS measurement -->
+    <script src="https://cdn.jsdelivr.net/npm/ts-ebml@3.0.2/dist/EBML.js"></script>
+</head>
+<body>
+    <div class="container"> <!--#claude-->
+        <h1>Camera Test</h1> <!--#claude-->
+
+        <div id="pwaWarning" class="pwa-warning" style="display: none;">
+            <p id="pwaWarningText" style="margin: 0;"></p>
+        </div>
+
+        <!-- #claude v55: Debug console for mobile log capture -->
+        <div id="debugPanel" style="display: none; position: fixed; bottom: 0; left: 0; right: 0; max-height: 300px; background: rgba(0,0,0,0.95); color: #0f0; font-family: monospace; font-size: 11px; padding: 10px; overflow-y: auto; border-top: 2px solid #0f0; z-index: 10000;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; border-bottom: 1px solid #0f0; padding-bottom: 5px;">
+                <strong style="color: #0f0;">📋 Debug Console</strong>
+                <div style="display: flex; gap: 5px;">
+                    <button onclick="copyDebugPanel()" style="background: #444; color: #0f0; border: 1px solid #0f0; padding: 3px 8px; font-size: 10px; cursor: pointer;">Copy All</button>
+                    <button onclick="clearDebugPanel()" style="background: #444; color: #0f0; border: 1px solid #0f0; padding: 3px 8px; font-size: 10px; cursor: pointer;">Clear</button>
+                </div>
+            </div>
+            <div id="debugContent"></div>
+        </div>
+
+        <div id="status" class="status" style="display: none;">Initializing...</div>
+
+        <!-- Encoder Test Progress Bar - above video -->
+        <div id="encoderProgressContainer" style="display: none; margin: 15px 0; padding: 15px; background: rgba(0, 122, 255, 0.1); border-radius: 12px; border: 1px solid rgba(0, 122, 255, 0.3);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <span style="font-weight: 600; color: #007aff;">🔧 Testing Encoders...</span>
+                <span id="encoderProgressText" style="font-size: 14px; color: #aaa;">0/2</span>
+            </div>
+            <div style="width: 100%; height: 8px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden;">
+                <div id="encoderProgressBar" style="width: 0%; height: 100%; background: linear-gradient(90deg, #007aff, #00d4ff); transition: width 0.3s ease;"></div>
+            </div>
+        </div>
+
+        <!-- Upload Progress Bar - above video -->
+        <div id="uploadProgressContainer" style="display: none; margin: 15px 0; padding: 15px; background: rgba(255, 152, 0, 0.1); border-radius: 12px; border: 1px solid rgba(255, 152, 0, 0.3);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <span style="font-weight: 600; color: #ff9800;">📤 Uploading Test Videos...</span>
+                <span id="uploadProgressText" style="font-size: 14px; color: #aaa;">0/2</span>
+            </div>
+            <div style="width: 100%; height: 8px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden;">
+                <div id="uploadProgressBar" style="width: 0%; height: 100%; background: linear-gradient(90deg, #ff9800, #ffeb3b); transition: width 0.3s ease;"></div>
+            </div>
+        </div>
+
+        <!-- Encoder Test Results Summary - above video -->
+        <div id="encoderResultsAboveVideo" style="display: none; margin: 15px 0; padding: 15px; background: rgba(0, 122, 255, 0.1); border-radius: 12px; border: 1px solid rgba(0, 122, 255, 0.3);">
+            <div style="font-weight: 600; margin-bottom: 10px; color: #007aff;">✅ Test Results:</div>
+            <div id="encoderSummaryAboveVideo" style="font-family: monospace; font-size: 13px; line-height: 1.8;"></div>
+        </div>
+
+        <!-- AI Quality Panel - moved above video -->
+        <div id="aiQualityPanel" class="info-panel" style="display: none; margin: 15px 0; padding: 15px; background: rgba(76, 175, 80, 0.1); border-radius: 12px; border: 1px solid rgba(76, 175, 80, 0.3);">
+            <h3 style="color: #4caf50; margin: 0 0 15px 0; font-size: 18px;">🤖 Live AI Quality Assessment</h3>
+            <div class="ai-quality-score" id="aiQualityScore">
+                <div class="score-circle" id="scoreCircle">
+                    <span id="scoreValue">-</span>
+                </div>
+                <div class="score-info">
+                    <div class="score-level" id="scoreLevel">Checking...</div>
+                    <div class="score-status" id="scoreStatus">Preparing camera...</div>
+                </div>
+            </div>
+            <div class="info-row">
+                <span>Status:</span>
+                <span id="aiStatus" style="color: #888;">Not started</span>
+            </div>
+            <div class="info-row">
+                <span>Last Check:</span>
+                <span id="aiLastCheck">-</span>
+            </div>
+            <div class="info-row">
+                <span>Inference Time:</span>
+                <span id="aiInferenceTime">-</span>
+            </div>
+            <div class="info-row">
+                <span>Good Frames:</span>
+                <span id="aiGoodFrames">0 / 15</span>
+            </div>
+        </div>
+
+        <div class="video-container">
+            <video id="preview" playsinline autoplay muted></video>
+            <canvas id="analysisCanvas" style="display: none;"></canvas>
+        </div>
+
+        <div class="controls"> <!--#claude-->
+            <!-- #claude v82: Buttons hidden - camera and encoder test auto-start on page load -->
+            <button id="startBtn" class="btn-primary" onclick="startCamera()" style="display: none;">Start Camera</button> <!--#claude-->
+            <button id="testEncoderBtn" class="btn-primary" onclick="runEncoderConfigTest()" style="display: none;">🔧 Test Encoder Configs</button> <!--#claude v51: Encoder config testing-->
+            <button class="btn-secondary" onclick="window.location.href='/'">← Back to Home</button> <!--#claude-->
+        </div> <!--#claude-->
+
+        <!-- #claude v51: Encoder Configuration Test Results - moved directly below button -->
+        <div id="encoderTestPanel" class="info-panel" style="display: none; margin-top: 20px;">
+            <h3>🔧 Encoder Configuration Test</h3>
+            <div id="encoderTestStatus" style="margin-bottom: 15px; padding: 10px; background: rgba(255,255,255,0.05); border-radius: 6px;">
+                <strong>Status:</strong> <span id="encoderStatus">Not tested</span>
+            </div>
+
+            <!-- #claude v82: Compact summary - algorithm and FPS only -->
+            <div id="encoderSummary" style="display: none; margin-bottom: 15px; padding: 12px; background: rgba(0, 122, 255, 0.1); border-radius: 8px; font-family: monospace; font-size: 13px; line-height: 1.8;"></div>
+
+            <div id="encoderTestResults"></div>
+        </div>
+
+        <!-- AI Quality Panel moved above video preview -->
+
+        <!-- Quality Metrics Panel removed - see ARCHIVED_quality_metrics.js -->
+        <!-- Now using AI quality score only + encoding capability test -->
+
+        <div class="info-panel">
+            <h3>System Information</h3>
+            <div id="infoContent">
+                <div class="info-row">
+                    <span>Browser:</span>
+                    <span id="browserInfo">-</span>
+                </div>
+                <div class="info-row">
+                    <span>PWA Mode:</span>
+                    <span id="pwaMode">-</span>
+                </div>
+                <div class="info-row">
+                    <span>Codec Support:</span>
+                    <span id="codecInfo">-</span>
+                </div>
+                <div class="info-row">
+                    <span>Camera Resolution:</span>
+                    <span id="resolutionInfo">-</span>
+                </div>
+                <div class="info-row"> <!--#claude-->
+                    <span>Camera Model:</span> <!--#claude-->
+                    <span id="cameraInfo">-</span> <!--#claude-->
+                </div> <!--#claude-->
+            </div>
+            <div id="capabilitiesPanel" style="display: none; margin-top: 20px; padding: 15px; background: rgba(255,255,255,0.05); border-radius: 8px;"> <!--#claude-->
+                <h3 style="font-size: 16px; margin-bottom: 10px;">Camera Capabilities</h3> <!--#claude-->
+                <div class="info-row"> <!--#claude-->
+                    <span>Supported Resolutions:</span> <!--#claude-->
+                    <span id="resolutionCapabilities" style="font-size: 12px;">-</span> <!--#claude-->
+                </div> <!--#claude-->
+                <div class="info-row"> <!--#claude-->
+                    <span>Supported Frame Rates:</span> <!--#claude-->
+                    <span id="fpsCapabilities" style="font-size: 12px;">-</span> <!--#claude-->
+                </div> <!--#claude-->
+            </div> <!--#claude-->
+        </div>
+    </div>
+
+    <script>
+        // #claude v55: Debug console for mobile log capture
+        (function() {
+            const debugPanel = document.getElementById('debugPanel');
+            const debugContent = document.getElementById('debugContent');
+            let logCount = 0;
+            const MAX_LOGS = 100; // Prevent memory issues
+
+            // #claude v65: Debug panel disabled - results now shown in proper UI table
+            // if (debugPanel) {
+            //     debugPanel.style.display = 'block';
+            // }
+
+            // Intercept console.log
+            const originalLog = console.log;
+            console.log = function(...args) {
+                originalLog.apply(console, args);
+
+                if (debugContent && logCount < MAX_LOGS) {
+                    const timestamp = new Date().toLocaleTimeString();
+                    const message = args.map(arg => {
+                        if (typeof arg === 'object') {
+                            try {
+                                return JSON.stringify(arg, null, 2);
+                            } catch (e) {
+                                return String(arg);
+                            }
+                        }
+                        return String(arg);
+                    }).join(' ');
+
+                    const logLine = document.createElement('div');
+                    logLine.style.marginBottom = '4px';
+                    logLine.style.borderBottom = '1px solid #333';
+                    logLine.style.paddingBottom = '2px';
+                    logLine.innerHTML = `<span style="color: #888;">[${timestamp}]</span> ${message}`;
+                    debugContent.appendChild(logLine);
+
+                    // Auto-scroll to bottom
+                    debugPanel.scrollTop = debugPanel.scrollHeight;
+                    logCount++;
+                }
+            };
+
+            // Also intercept console.warn and console.error
+            const originalWarn = console.warn;
+            console.warn = function(...args) {
+                originalWarn.apply(console, args);
+                if (debugContent && logCount < MAX_LOGS) {
+                    const timestamp = new Date().toLocaleTimeString();
+                    const message = args.join(' ');
+                    const logLine = document.createElement('div');
+                    logLine.style.marginBottom = '4px';
+                    logLine.style.color = '#ff0';
+                    logLine.innerHTML = `<span style="color: #888;">[${timestamp}]</span> ⚠️ ${message}`;
+                    debugContent.appendChild(logLine);
+                    debugPanel.scrollTop = debugPanel.scrollHeight;
+                    logCount++;
+                }
+            };
+
+            const originalError = console.error;
+            console.error = function(...args) {
+                originalError.apply(console, args);
+                if (debugContent && logCount < MAX_LOGS) {
+                    const timestamp = new Date().toLocaleTimeString();
+                    const message = args.join(' ');
+                    const logLine = document.createElement('div');
+                    logLine.style.marginBottom = '4px';
+                    logLine.style.color = '#f00';
+                    logLine.innerHTML = `<span style="color: #888;">[${timestamp}]</span> ❌ ${message}`;
+                    debugContent.appendChild(logLine);
+                    debugPanel.scrollTop = debugPanel.scrollHeight;
+                    logCount++;
+                }
+            };
+
+            // Clear function
+            window.clearDebugPanel = function() {
+                if (debugContent) {
+                    debugContent.innerHTML = '';
+                    logCount = 0;
+                    console.log('Debug panel cleared');
+                }
+            };
+
+            // Copy all logs to clipboard
+            window.copyDebugPanel = function() {
+                if (debugContent) {
+                    // Get plain text from all log entries
+                    const logEntries = debugContent.querySelectorAll('div');
+                    const text = Array.from(logEntries).map(div => div.textContent).join('\n');
+
+                    if (text.trim() === '') {
+                        console.log('No logs to copy');
+                        return;
+                    }
+
+                    // Copy to clipboard
+                    if (navigator.clipboard && navigator.clipboard.writeText) {
+                        navigator.clipboard.writeText(text).then(() => {
+                            // Show temporary success message
+                            const originalTitle = debugPanel.querySelector('strong').textContent;
+                            debugPanel.querySelector('strong').textContent = '✅ Copied to clipboard!';
+                            setTimeout(() => {
+                                debugPanel.querySelector('strong').textContent = originalTitle;
+                            }, 2000);
+                        }).catch(err => {
+                            console.error('Failed to copy:', err);
+                            alert('Failed to copy logs to clipboard');
+                        });
+                    } else {
+                        // Fallback for older browsers
+                        const textarea = document.createElement('textarea');
+                        textarea.value = text;
+                        textarea.style.position = 'fixed';
+                        textarea.style.opacity = '0';
+                        document.body.appendChild(textarea);
+                        textarea.select();
+                        try {
+                            document.execCommand('copy');
+                            const originalTitle = debugPanel.querySelector('strong').textContent;
+                            debugPanel.querySelector('strong').textContent = '✅ Copied to clipboard!';
+                            setTimeout(() => {
+                                debugPanel.querySelector('strong').textContent = originalTitle;
+                            }, 2000);
+                        } catch (err) {
+                            console.error('Failed to copy:', err);
+                            alert('Failed to copy logs to clipboard');
+                        }
+                        document.body.removeChild(textarea);
+                    }
+                }
+            };
+        })();
+
+        // Global state
+        let stream = null;
+        let mediaRecorder = null;
+        let recordedChunks = [];
+        let globalDeviceInfo = null;  // #claude: Store device info globally for metadata
+        let recordingStartTime = null;
+        let wakeLock = null;  // #claude: Screen wake lock
+        let silentAudio = null;  // #claude: Fallback for wake lock
+
+        // AI Quality checking state
+        let aiQualityCheckInterval = null;
+        let aiQualityBuffer = [];  // Buffer to track last 15 quality checks
+        const AI_CHECK_INTERVAL = 2000;  // Check every 2 seconds
+        const AI_BUFFER_SIZE = 15;  // Need 15 consecutive good frames
+        const AI_THRESHOLD = 0.5;  // Minimum quality score (0-1)
+        const BACKEND_URL = '';  // Same origin - frontend and backend on same server
+
+        // Detect PWA mode
+        function isStandalonePWA() {
+            return window.matchMedia('(display-mode: standalone)').matches ||
+                   window.navigator.standalone === true;
+        }
+
+        // Get browser info
+        function getBrowserInfo() {
+            const ua = navigator.userAgent;
+            if (ua.indexOf('Safari') !== -1 && ua.indexOf('Chrome') === -1) {
+                const version = ua.match(/Version\/(\d+\.\d+)/);
+                return `Safari ${version ? version[1] : '?'}`;
+            } else if (ua.indexOf('Chrome') !== -1) {
+                const version = ua.match(/Chrome\/(\d+\.\d+)/);
+                return `Chrome ${version ? version[1] : '?'}`;
+            } else if (ua.indexOf('Firefox') !== -1) {
+                const version = ua.match(/Firefox\/(\d+\.\d+)/);
+                return `Firefox ${version ? version[1] : '?'}`;
+            }
+            return 'Unknown';
+        }
+
+        // V48: Detect best codec - prioritize H.264 for hardware acceleration at 12 Mbps
+        function getBestCodec() {
+            console.log('🎬 Prioritizing H.264 codec for hardware acceleration at 12 Mbps bitrate');
+
+            const codecs = [
+                // H.264 first (universal hardware acceleration)
+                'video/mp4; codecs="avc1.42E01E,mp4a.40.2"',  // H.264 + AAC
+                'video/mp4; codecs="avc1.42E01E"',            // H.264 video only
+                'video/mp4',                                   // Generic MP4
+                // Fallback to VP8 (lighter than VP9)
+                'video/webm; codecs="vp8,opus"',
+                'video/webm; codecs=vp8',
+                'video/webm'
+            ];
+
+            for (const codec of codecs) {
+                if (MediaRecorder.isTypeSupported(codec)) {
+                    console.log('✅ Using codec:', codec);
+                    return codec;
+                }
+            }
+
+            // If nothing works, return empty and let browser pick default
+            console.warn('⚠️ No explicitly supported codecs, using browser default');
+            return '';
+        }
+
+        // Update status message
+        function setStatus(message, type = 'info') {
+            const statusEl = document.getElementById('status');
+            statusEl.textContent = message;
+            statusEl.className = 'status ' + type;
+        }
+
+        // #claude: Prevent screen from sleeping during camera use
+        async function preventScreenSleep() {
+            // Try Wake Lock API first (Safari 16.4+, Chrome 84+)
+            if ('wakeLock' in navigator) {
+                try {
+                    wakeLock = await navigator.wakeLock.request('screen');
+                    console.log('✅ Wake Lock acquired - screen will stay on');
+
+                    // Re-acquire wake lock if it's released (e.g., tab becomes inactive then active again)
+                    wakeLock.addEventListener('release', () => {
+                        console.log('⚠️ Wake Lock was released');
+                    });
+
+                    return true;
+                } catch (err) {
+                    console.warn('⚠️ Wake Lock failed, using silent audio fallback:', err.message);
+                }
+            } else {
+                console.log('ℹ️ Wake Lock API not available, using silent audio fallback');
+            }
+
+            // Fallback: Silent audio loop (100% reliable on all browsers)
+            // Create a silent audio file (0.1 seconds of silence)
+            const silentAudioData = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=';
+            silentAudio = new Audio(silentAudioData);
+            silentAudio.loop = true;
+            silentAudio.volume = 0;
+
+            try {
+                await silentAudio.play();
+                console.log('✅ Silent audio loop started - screen will stay on');
+                return true;
+            } catch (err) {
+                console.error('❌ Failed to prevent screen sleep:', err.message);
+                return false;
+            }
+        }
+
+        // #claude: Release screen wake lock
+        function releaseScreenLock() {
+            if (wakeLock) {
+                wakeLock.release();
+                wakeLock = null;
+                console.log('✅ Wake Lock released');
+            }
+
+            if (silentAudio) {
+                silentAudio.pause();
+                silentAudio = null;
+                console.log('✅ Silent audio stopped');
+            }
+        }
+
+        // Initialize page
+        window.addEventListener('DOMContentLoaded', () => {
+            // Update system info
+            document.getElementById('browserInfo').textContent = getBrowserInfo();
+
+            const isPWA = isStandalonePWA();
+            document.getElementById('pwaMode').textContent = isPWA ? '✅ Yes' : '❌ No';
+
+            // Show PWA warning if not in standalone mode (iOS only)
+            if (!isPWA) {
+                const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+                console.log(`📱 PWA Warning Check: isPWA=${isPWA}, isIOS=${isIOS}, UA="${navigator.userAgent}"`);
+
+                if (isIOS) {
+                    // iOS-specific message - only show warning on iOS
+                    console.log('⚠️ Showing iOS PWA warning');
+                    document.getElementById('pwaWarningText').textContent = 'For best performance in iOS, use the Apple option on the Home screen to add a shortcut to your device and access the test there.';
+                    document.getElementById('pwaWarning').style.display = 'block';
+                } else {
+                    // Hide warning for all non-iOS devices (Android, desktop, etc.)
+                    console.log('✓ Hiding PWA warning (non-iOS device)');
+                }
+            } else {
+                console.log('✓ Hiding PWA warning (already in PWA mode)');
+            }
+
+            try {
+                const codec = getBestCodec();
+                if (codec) {
+                    // Extract codec name (e.g., "vp9" from 'video/webm; codecs="vp9,opus"')
+                    let displayCodec = codec.split(';')[0].replace('video/', '');
+                    if (codec.includes('codecs=')) {
+                        const codecMatch = codec.match(/codecs=["']?([^"']+)["']?/);
+                        if (codecMatch) {
+                            displayCodec += ` (${codecMatch[1]})`;
+                        }
+                    }
+                    document.getElementById('codecInfo').textContent = displayCodec;
+                } else {
+                    document.getElementById('codecInfo').textContent = 'Browser default';
+                }
+            } catch (err) {
+                document.getElementById('codecInfo').textContent = '❌ None available';
+                setStatus('Error: No supported video codecs', 'error');
+            }
+
+            // #claude v82: Auto-start camera and encoder test
+            // setStatus('Initializing camera...', 'warning'); // Removed - status frame hidden
+            startCamera();
+        });
+
+        // #claude: Release wake lock when page is closed or hidden
+        window.addEventListener('beforeunload', () => {
+            releaseScreenLock();
+        });
+
+        // #claude: Handle visibility changes (tab switching)
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden && wakeLock) {
+                console.log('⚠️ Page hidden - wake lock may be released by browser');
+            }
+        });
+
+        // ========================================================================
+        // AI Quality Checking Functions
+        // ========================================================================
+
+        /**
+         * Capture current frame from video as base64 image
+         */
+        function captureFrameAsBase64() {
+            const video = document.getElementById('preview');
+            const canvas = document.getElementById('analysisCanvas');
+
+            // Set canvas size to match video
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+
+            // Draw video frame to canvas
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            // Convert to base64
+            return canvas.toDataURL('image/jpeg', 0.95);
+        }
+
+        /**
+         * Check AI quality of current frame
+         */
+        async function checkAIQuality() {
+            try {
+                // Update status
+                document.getElementById('aiStatus').textContent = 'Checking...';
+                document.getElementById('aiStatus').style.color = '#007aff';
+
+                // Capture frame
+                const imageData = captureFrameAsBase64();
+
+                // Send to backend for AI inference
+                const response = await fetch(`${BACKEND_URL}/api/quality/check`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ image: imageData })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const result = await response.json();
+
+                // Update UI with results
+                updateAIQualityUI(result);
+
+                // Update buffer
+                updateQualityBuffer(result.threshold_met);
+
+                return result;
+            } catch (error) {
+                console.error('AI quality check failed:', error);
+                document.getElementById('aiStatus').textContent = `Error: ${error.message}`;
+                document.getElementById('aiStatus').style.color = '#ff3b30';
+                return null;
+            }
+        }
+
+        /**
+         * Update AI quality UI with results
+         */
+        function updateAIQualityUI(result) {
+            // Update score circle
+            const scoreValue = document.getElementById('scoreValue');
+            const scoreCircle = document.getElementById('scoreCircle');
+            const scoreLevel = document.getElementById('scoreLevel');
+            const scoreStatus = document.getElementById('scoreStatus');
+
+            // Handle edge cases (no face, multiple faces, etc.)
+            if (result.status !== 'OK') {
+                // Show warning state
+                scoreValue.textContent = '--';
+                scoreCircle.style.background = '#2a2a2a';
+                scoreLevel.textContent = result.status.replace('_', ' ');
+                scoreLevel.className = 'score-level poor';
+
+                // Status-specific messages
+                let statusMessage, statusColor, detailMessage;
+                switch(result.status) {
+                    case 'NO_FACE':
+                        statusMessage = '⚠ No face detected';
+                        statusColor = '#ff9500';
+                        detailMessage = 'Center your face in the frame';
+                        break;
+                    case 'MULTIPLE_FACES':
+                        statusMessage = '⚠ Multiple faces detected';
+                        statusColor = '#ff9500';
+                        detailMessage = 'Ensure you are alone in the frame';
+                        break;
+                    case 'FACE_TOO_SMALL':
+                        statusMessage = '⚠ Face too small';
+                        statusColor = '#ff9500';
+                        detailMessage = 'Move closer to the camera';
+                        break;
+                    case 'PARTIAL_FACE':
+                        statusMessage = '⚠ Face partially out of frame';
+                        statusColor = '#ff9500';
+                        detailMessage = 'Center your face fully in frame';
+                        break;
+                    default:
+                        statusMessage = '✗ Quality check failed';
+                        statusColor = '#ff3b30';
+                        detailMessage = result.message || 'Unknown error';
+                }
+
+                document.getElementById('aiStatus').textContent = statusMessage;
+                document.getElementById('aiStatus').style.color = statusColor;
+                scoreStatus.textContent = detailMessage;
+
+                // Update other info
+                document.getElementById('aiLastCheck').textContent = new Date().toLocaleTimeString();
+                document.getElementById('aiInferenceTime').textContent = `${result.inference_time_ms}ms`;
+                return;
+            }
+
+            // Normal case: face detected and quality assessed
+            // Display score
+            scoreValue.textContent = result.quality_score.toFixed(2);
+
+            // Update circle color based on quality
+            let color;
+            if (result.quality_level === 'good') {
+                color = '#34c759';
+            } else if (result.quality_level === 'acceptable') {
+                color = '#ff9500';
+            } else {
+                color = '#ff3b30';
+            }
+
+            // Update circle gradient (0-360 degrees based on score)
+            const degrees = result.quality_score * 360;
+            scoreCircle.style.background = `conic-gradient(${color} ${degrees}deg, #2a2a2a ${degrees}deg)`;
+
+            // Update level text
+            scoreLevel.textContent = result.quality_level.toUpperCase();
+            scoreLevel.className = `score-level ${result.quality_level}`;
+
+            // Update status
+            if (result.threshold_met) {
+                document.getElementById('aiStatus').textContent = '✓ Good quality';
+                document.getElementById('aiStatus').style.color = '#34c759';
+                scoreStatus.textContent = 'Ready for recording';
+            } else {
+                document.getElementById('aiStatus').textContent = '✗ Improve lighting/position';
+                document.getElementById('aiStatus').style.color = '#ff9500';
+                scoreStatus.textContent = 'Adjust camera for better quality';
+            }
+
+            // Update other info
+            document.getElementById('aiLastCheck').textContent = new Date().toLocaleTimeString();
+            document.getElementById('aiInferenceTime').textContent = `${result.inference_time_ms}ms`;
+        }
+
+        /**
+         * Update quality buffer and check if recording can be enabled
+         */
+        function updateQualityBuffer(isGood) {
+            // Add to buffer
+            aiQualityBuffer.push(isGood);
+
+            // Keep only last 15 checks
+            if (aiQualityBuffer.length > AI_BUFFER_SIZE) {
+                aiQualityBuffer.shift();
+            }
+
+            // Count good frames
+            const goodFrames = aiQualityBuffer.filter(x => x).length;
+            document.getElementById('aiGoodFrames').textContent = `${goodFrames} / ${AI_BUFFER_SIZE}`;
+
+            // Check if all frames are good
+            const allGood = aiQualityBuffer.length === AI_BUFFER_SIZE &&
+                            aiQualityBuffer.every(x => x);
+
+            // Update status if buffer is full
+            if (allGood) {
+                const scoreStatus = document.getElementById('scoreStatus');
+                scoreStatus.textContent = '✓ Recording quality verified!';
+                scoreStatus.style.color = '#34c759';
+            }
+
+            return allGood;
+        }
+
+        /**
+         * Start AI quality checking loop
+         */
+        function startAIQualityChecking() {
+            // Show AI panel
+            document.getElementById('aiQualityPanel').style.display = 'block';
+
+            // Reset buffer
+            aiQualityBuffer = [];
+
+            // Start periodic checking
+            aiQualityCheckInterval = setInterval(async () => {
+                await checkAIQuality();
+            }, AI_CHECK_INTERVAL);
+
+            // Do first check immediately
+            setTimeout(() => checkAIQuality(), 1000); // Wait 1s for video to stabilize
+        }
+
+        /**
+         * Stop AI quality checking
+         */
+        function stopAIQualityChecking() {
+            if (aiQualityCheckInterval) {
+                clearInterval(aiQualityCheckInterval);
+                aiQualityCheckInterval = null;
+            }
+
+            // Hide AI panel
+            document.getElementById('aiQualityPanel').style.display = 'none';
+
+            // Reset buffer
+            aiQualityBuffer = [];
+        }
+
+        // ========================================================================
+        // Camera Functions
+        // ========================================================================
+
+        // Start camera
+        async function startCamera() {
+            try {
+                // setStatus('Requesting camera access...', 'warning'); // Removed - unnecessary status
+
+                // Feature detection for getUserMedia API //#claude
+                if (!navigator.mediaDevices) { //#claude
+                    setStatus('Error: navigator.mediaDevices is not supported in this browser. Please use a modern browser (Chrome, Firefox, or Safari).', 'error'); //#claude
+                    return; //#claude
+                } //#claude
+                //#claude
+                if (!navigator.mediaDevices.getUserMedia) { //#claude
+                    setStatus('Error: getUserMedia is not supported in this browser. Please update your browser.', 'error'); //#claude
+                    return; //#claude
+                } //#claude
+                //#claude
+                // Check if we're in a secure context (HTTPS or localhost) //#claude
+                if (!window.isSecureContext) { //#claude
+                    setStatus('Error: Camera access requires HTTPS or localhost. Current context is not secure.', 'error'); //#claude
+                    console.warn('Not in secure context. isSecureContext:', window.isSecureContext); //#claude
+                    return; //#claude
+                } //#claude
+
+                // Request maximum quality for archival recordings
+                const constraints = {
+                    video: {
+                        width: { ideal: 8192 },    // V48: Request absolute maximum width
+                        height: { ideal: 8192 },   // V48: Request absolute maximum height
+                        frameRate: { ideal: 60, min: 30 },
+                        facingMode: { exact: 'user' }  // Force front-facing camera
+                        // V48: No aspectRatio constraint - use native camera max
+                    },
+                    audio: {
+                        echoCancellation: false,
+                        noiseSuppression: false,
+                        autoGainControl: false,
+                        sampleRate: 48000
+                    }
+                };
+
+                stream = await navigator.mediaDevices.getUserMedia(constraints);
+
+                // Show preview
+                const preview = document.getElementById('preview');
+                preview.srcObject = stream;
+
+                // Add video element error handlers
+                preview.onerror = (e) => {
+                    console.error('❌ Video element error:', e);
+                    setStatus('Video preview failed to load. Please refresh the page and try again.', 'error');
+                };
+
+                preview.onstalled = () => {
+                    console.warn('⚠️ Video playback stalled');
+                };
+
+                preview.onsuspend = () => {
+                    console.warn('⚠️ Video playback suspended');
+                };
+
+                // Get actual resolution
+                const videoTrack = stream.getVideoTracks()[0];
+                const settings = videoTrack.getSettings();
+                document.getElementById('resolutionInfo').textContent =
+                    `${settings.width}x${settings.height} @ ${settings.frameRate}fps`;
+
+                // #claude: Debug - log what was requested vs what was granted
+                console.log(`📸 Camera resolution - Requested: ideal 8192x8192, Granted: ${settings.width}x${settings.height}`);
+
+                // Monitor video track for unexpected stops
+                videoTrack.onended = () => {
+                    console.error('❌ Video track ended unexpectedly');
+                    setStatus('ERROR: Camera stream stopped. Camera may have been disconnected or permissions revoked.', 'error');
+                };
+
+                // Get camera model //#claude
+                const cameraLabel = videoTrack.label || 'Unknown Camera'; //#claude
+                document.getElementById('cameraInfo').textContent = cameraLabel; //#claude
+
+                // Get camera capabilities //#claude
+                if (typeof videoTrack.getCapabilities === 'function') { //#claude
+                    const capabilities = videoTrack.getCapabilities(); //#claude
+                    //#claude
+                    // Show supported resolutions //#claude
+                    if (capabilities.width && capabilities.height) { //#claude
+                        const minRes = `${capabilities.width.min}x${capabilities.height.min}`; //#claude
+                        const maxRes = `${capabilities.width.max}x${capabilities.height.max}`; //#claude
+                        document.getElementById('resolutionCapabilities').textContent = `${minRes} to ${maxRes}`; //#claude
+
+                        // #claude: DEBUG - Check if Chrome is limiting the stream below camera's max capability
+                        if (settings.width < capabilities.width.max || settings.height < capabilities.height.max) {
+                            console.warn(`⚠️ RESOLUTION MISMATCH!`);
+                            console.warn(`   Camera reports max: ${capabilities.width.max}x${capabilities.height.max}`);
+                            console.warn(`   Chrome granted: ${settings.width}x${settings.height}`);
+                            console.warn(`   → Chrome is NOT giving you the camera's full resolution!`);
+                        } else {
+                            console.log(`✅ Using camera's full resolution capability`);
+                        }
+                    } //#claude
+                    //#claude
+                    // Show supported frame rates //#claude
+                    if (capabilities.frameRate) { //#claude
+                        const maxFps = capabilities.frameRate.max || 'Unknown'; //#claude
+                        if (capabilities.frameRate.min) { //#claude
+                            document.getElementById('fpsCapabilities').textContent = `${capabilities.frameRate.min} to ${maxFps} fps`; //#claude
+                        } else { //#claude
+                            document.getElementById('fpsCapabilities').textContent = `Up to ${maxFps} fps`; //#claude
+                        } //#claude
+                    } //#claude
+                    //#claude
+                    document.getElementById('capabilitiesPanel').style.display = 'block'; //#claude
+                } //#claude
+
+                // Disable start button after camera starts //#claude
+                document.getElementById('startBtn').disabled = true; //#claude
+
+                // #claude: Wait for video preview to be ready before starting encoder test
+                console.log('⏳ Waiting for video preview to be ready...');
+
+                let testStarted = false;  // #claude: Flag to prevent double-start
+
+                // Wait for video to be ready
+                preview.addEventListener('canplay', () => {
+                    console.log('✅ Video preview ready (canplay event)');
+
+                    // Check if video has valid dimensions
+                    if (preview.videoWidth === 0 || preview.videoHeight === 0) {
+                        console.error('❌ Video preview has invalid dimensions:', preview.videoWidth, 'x', preview.videoHeight);
+                        setStatus('ERROR: Video preview failed - no video dimensions. Camera may be in use by another app or browser issue.', 'error');
+                        testStarted = true;
+                        return;
+                    }
+
+                    // Check if video track is active
+                    const videoTrack = stream.getVideoTracks()[0];
+                    if (!videoTrack || !videoTrack.enabled || videoTrack.readyState !== 'live') {
+                        console.error('❌ Video track is not active:', {
+                            exists: !!videoTrack,
+                            enabled: videoTrack?.enabled,
+                            readyState: videoTrack?.readyState
+                        });
+                        setStatus('ERROR: Video track is not active. Camera may have been disconnected or permissions revoked.', 'error');
+                        testStarted = true;
+                        return;
+                    }
+
+                    if (!testStarted) {
+                        testStarted = true;
+                        // Longer delay to ensure preview is visible to user
+                        setTimeout(() => {
+                            console.log('🚀 Starting encoder test now...');
+                            runEncoderConfigTest();
+                        }, 2000);  // #claude: Increased from 1s to 2s
+                    }
+                }, { once: true });
+
+                // #claude: Safety fallback in case canplay doesn't fire (e.g., on some Android devices)
+                setTimeout(() => {
+                    if (!testStarted) {
+                        console.warn('⚠️ canplay event did not fire after 5 seconds');
+
+                        // Final check - if video still has no dimensions, it's broken
+                        if (preview.videoWidth === 0 || preview.videoHeight === 0) {
+                            console.error('❌ Video preview never loaded (timeout + no dimensions)');
+                            setStatus('ERROR: Video preview failed to load. Please refresh the page and ensure camera permissions are granted.', 'error');
+                            testStarted = true;
+                            return;
+                        }
+
+                        console.warn('Starting test anyway after timeout...');
+                        testStarted = true;
+                        runEncoderConfigTest();
+                    }
+                }, 5000);  // #claude: 5 second fallback
+
+                // Real-time quality metrics removed - see ARCHIVED_quality_metrics.js //#claude
+                // Using AI quality score only (less CPU burden) //#claude
+
+                // #claude: AI quality checking will start AFTER encoder test completes
+                // startAIQualityChecking(); // Disabled - will start after encoder test
+
+                // #claude: Prevent screen from turning off during camera use
+                preventScreenSleep();
+            } catch (err) {
+                console.error('Camera error:', err);
+                setStatus(`Camera error: ${err.message}`, 'error');
+            }
+        }
+
+        // Start recording
+        async function startRecording() {
+            try {
+                const codec = getBestCodec();
+
+                // Configure MediaRecorder options - V48: Match production bitrates for testing
+                const options = {
+                    videoBitsPerSecond: 12000000, // 12 Mbps (matches production)
+                    audioBitsPerSecond: 320000   // 320 kbps (matches production)
+                };
+
+                // Only set mimeType if we have a specific codec (empty means browser default)
+                if (codec) {
+                    options.mimeType = codec;
+                }
+
+                recordedChunks = [];
+                mediaRecorder = new MediaRecorder(stream, options);
+
+                // Log actual codec being used
+                console.log('MediaRecorder mimeType:', mediaRecorder.mimeType);
+
+                mediaRecorder.ondataavailable = (event) => {
+                    if (event.data.size > 0) {
+                        recordedChunks.push(event.data);
+                        console.log(`Chunk received: ${event.data.size} bytes`);
+                    }
+                };
+
+                mediaRecorder.onstop = () => {
+                    const duration = ((Date.now() - recordingStartTime) / 1000).toFixed(1);
+                    document.getElementById('durationInfo').textContent = `${duration}s`;
+
+                    // Create blob and show playback (use actual recorder mimeType)
+                    const blob = new Blob(recordedChunks, { type: mediaRecorder.mimeType });
+                    document.getElementById('sizeInfo').textContent =
+                        `${(blob.size / 1024 / 1024).toFixed(2)} MB`;
+
+                    const url = URL.createObjectURL(blob);
+                    const playback = document.getElementById('playback');
+                    playback.src = url;
+                    playback.style.display = 'block';
+
+                    document.getElementById('preview').style.display = 'none';
+                    document.getElementById('recordingIndicator').classList.remove('active');
+
+                    setStatus('Recording complete! Check playback video.', 'success');
+
+                    // Reset UI
+                    document.getElementById('recordBtn').disabled = false;
+                    document.getElementById('stopBtn').style.display = 'none';
+                };
+
+                // Start recording
+                recordingStartTime = Date.now();
+                mediaRecorder.start(1000); // Request chunks every 1 second
+
+                document.getElementById('recordingIndicator').classList.add('active');
+                document.getElementById('recordBtn').disabled = true;
+                document.getElementById('stopBtn').disabled = false;
+                document.getElementById('stopBtn').style.display = 'block';
+
+                setStatus('Recording... (5 seconds)', 'warning');
+
+                // Auto-stop after 5 seconds
+                setTimeout(() => {
+                    if (mediaRecorder && mediaRecorder.state === 'recording') {
+                        stopRecording();
+                    }
+                }, 5000);
+
+            } catch (err) {
+                console.error('Recording error:', err);
+                setStatus(`Recording error: ${err.message}`, 'error');
+            }
+        }
+
+        // Stop recording
+        function stopRecording() {
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                mediaRecorder.stop();
+                setStatus('Processing recording...', 'warning');
+            }
+        }
+
+        // ========================================
+        // QUALITY ANALYSIS REMOVED
+        // ========================================
+        // Real-time quality metrics moved to ARCHIVED_quality_metrics.js
+        // Reason: CPU-intensive, causes frame drops on mobile
+        // Using AI quality score only (via Triton backend)
+
+        // ========================================
+        // ENCODING CAPABILITY TEST
+        // ========================================
+        // Tests if device can encode video at different resolutions/FPS without dropping frames
+
+        let encodingTestResults = [];
+        let encodingTestInProgress = false;
+
+        /**
+         * Test configurations from highest to lowest capability
+         * Will test encoding performance at 12 Mbps bitrate (production setting)
+         */
+        const ENCODING_TEST_CONFIGS = [
+            { name: 'Max Camera', width: 8192, height: 8192, fps: 60, bitrate: 12000000 },
+            { name: '4K@60', width: 3840, height: 2160, fps: 60, bitrate: 12000000 },
+            { name: '1080p@60', width: 1920, height: 1080, fps: 60, bitrate: 12000000 },
+            { name: '1080p@30', width: 1920, height: 1080, fps: 30, bitrate: 12000000 },
+            { name: '720p@60', width: 1280, height: 720, fps: 60, bitrate: 12000000 }
+        ];
+
+        /**
+         * Test if device can encode video at a specific resolution/FPS without dropping frames
+         * Key metric: Does encoding keep up with real-time capture?
+         *
+         * How we measure encoding performance:
+         * 1. Request camera stream at target resolution/FPS
+         * 2. Start MediaRecorder with 12 Mbps bitrate
+         * 3. Record for 3 seconds with 1-second chunks //#claude - changed from 5s to 3s
+         * 4. Track ondataavailable timing - chunks should arrive every ~1 second
+         * 5. Count chunks: expect 3 chunks for 3-second recording //#claude - changed from 5 to 3
+         * 6. Check chunk sizes: large variance indicates encoding struggles
+         *
+         * Success criteria:
+         * - Chunks arrive on time (within 300ms tolerance)
+         * - Received 2-4 chunks (expected 3) //#claude - changed from 4-6 chunks (expected 5)
+         * - No MediaRecorder errors
+         * - Chunk size variance < 50% (encoding is consistent)
+         */
+        async function testEncodingCapability(config) {
+            console.log(`\n🎬 Testing encoding: ${config.name} (${config.width}x${config.height}@${config.fps}fps)`);
+
+            let testStream = null;
+            let testRecorder = null;
+            const chunks = [];
+            const chunkTimes = []; // Track when chunks arrive
+            const startTime = Date.now();
+
+            try {
+                // 1. Request camera stream
+                testStream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        width: { ideal: config.width },
+                        height: { ideal: config.height },
+                        frameRate: { ideal: config.fps },
+                        facingMode: { exact: 'user' }
+                    },
+                    audio: false
+                });
+
+                // 2. Check what we actually got
+                const track = testStream.getVideoTracks()[0];
+                const settings = track.getSettings();
+                const actualResolution = `${settings.width}x${settings.height}`;
+                const actualFPS = settings.frameRate || 30;
+
+                console.log(`  📹 Requested: ${config.width}x${config.height}@${config.fps}fps`);
+                console.log(`  ✓ Achieved: ${actualResolution}@${actualFPS}fps`);
+
+                // 3. Set up MediaRecorder with production settings
+                const codec = getBestCodec();
+                const recorderOptions = {
+                    videoBitsPerSecond: config.bitrate,
+                    audioBitsPerSecond: 0 // No audio for test
+                };
+                if (codec) recorderOptions.mimeType = codec;
+
+                testRecorder = new MediaRecorder(testStream, recorderOptions);
+
+                // 4. Track chunks and timing
+                testRecorder.ondataavailable = (event) => {
+                    if (event.data.size > 0) {
+                        const chunkTime = Date.now() - startTime;
+                        chunks.push(event.data);
+                        chunkTimes.push(chunkTime);
+                        console.log(`  📦 Chunk ${chunks.length} arrived at ${chunkTime}ms (size: ${(event.data.size / 1024).toFixed(0)}KB)`);
+                    }
+                };
+
+                // 5. Start recording with 1-second chunks
+                testRecorder.start(1000); // Request chunk every 1 second
+                console.log(`  ⏱️ Recording for 3 seconds...`); //#claude - changed from 5s to 3s
+
+                // 6. Wait 3 seconds //#claude - changed from 5s to 3s
+                await new Promise(resolve => setTimeout(resolve, 3000));
+
+                // 7. Stop and analyze
+                testRecorder.stop();
+                await new Promise(resolve => {
+                    testRecorder.onstop = resolve;
+                });
+
+                // 8. Analyze results
+                const expectedChunks = 3; //#claude - changed from 5 to 3
+                const chunkCount = chunks.length;
+                const totalSize = chunks.reduce((sum, chunk) => sum + chunk.size, 0);
+                const avgChunkSize = totalSize / chunkCount;
+                const chunkSizes = chunks.map(c => c.size);
+                const sizeVariance = calculateVariance(chunkSizes);
+                const sizeCV = Math.sqrt(sizeVariance) / avgChunkSize; // Coefficient of variation
+
+                // Check timing accuracy: chunks should arrive at 1s, 2s, 3s //#claude - changed from 5s test
+                const expectedTimes = [1000, 2000, 3000]; //#claude - changed from [1000, 2000, 3000, 4000, 5000]
+                const timingErrors = chunkTimes.map((actual, i) =>
+                    Math.abs(actual - expectedTimes[i])
+                );
+                const maxTimingError = Math.max(...timingErrors);
+                const avgTimingError = timingErrors.reduce((sum, err) => sum + err, 0) / timingErrors.length;
+
+                // 9. Determine if encoding was successful
+                const success = (
+                    chunkCount >= 2 && chunkCount <= 4 &&  // Got most chunks //#claude - changed from 4-6 to 2-4
+                    maxTimingError < 500 &&                 // Chunks arrived within 500ms of expected
+                    sizeCV < 0.5                            // Size variance < 50%
+                );
+
+                const result = {
+                    config: config.name,
+                    requestedResolution: `${config.width}x${config.height}`,
+                    actualResolution: actualResolution,
+                    requestedFPS: config.fps,
+                    actualFPS: actualFPS,
+                    achievedRequestedSpecs: (actualResolution === `${config.width}x${config.height}` && actualFPS === config.fps),
+                    chunkCount: chunkCount,
+                    expectedChunks: expectedChunks,
+                    totalSizeMB: (totalSize / 1024 / 1024).toFixed(2),
+                    avgBitrateMbps: ((totalSize * 8) / 3 / 1000000).toFixed(2), // Mbps //#claude - changed from /5 to /3
+                    chunkSizeCV: (sizeCV * 100).toFixed(1) + '%',
+                    maxTimingErrorMs: maxTimingError,
+                    avgTimingErrorMs: avgTimingError.toFixed(0),
+                    canEncode: success,
+                    status: success ? '✅ Excellent' : (chunkCount >= 2 ? '⚠️ Marginal' : '❌ Failed') //#claude - changed from >=3 to >=2
+                };
+
+                console.log(`  ${result.status}: Chunks ${chunkCount}/${expectedChunks}, Timing error ${maxTimingError}ms, Size CV ${result.chunkSizeCV}`);
+
+                // Cleanup
+                testStream.getTracks().forEach(track => track.stop());
+
+                return result;
+
+            } catch (err) {
+                console.error(`  ❌ Error testing ${config.name}:`, err);
+
+                // Cleanup on error
+                if (testStream) testStream.getTracks().forEach(track => track.stop());
+
+                return {
+                    config: config.name,
+                    requestedResolution: `${config.width}x${config.height}`,
+                    actualResolution: 'Failed',
+                    requestedFPS: config.fps,
+                    actualFPS: 0,
+                    achievedRequestedSpecs: false,
+                    chunkCount: 0,
+                    expectedChunks: 3, //#claude - changed from 5 to 3
+                    totalSizeMB: '0',
+                    avgBitrateMbps: '0',
+                    chunkSizeCV: 'N/A',
+                    maxTimingErrorMs: 9999,
+                    avgTimingErrorMs: 9999,
+                    canEncode: false,
+                    status: '❌ Failed',
+                    error: err.message
+                };
+            }
+        }
+
+        /**
+         * Helper: Calculate variance of an array
+         */
+        function calculateVariance(arr) {
+            if (arr.length === 0) return 0;
+            const mean = arr.reduce((sum, val) => sum + val, 0) / arr.length;
+            const variance = arr.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / arr.length;
+            return variance;
+        }
+
+        /**
+         * Run the full encoding capability test suite
+         * Tests all configurations from highest to lowest
+         */
+        async function runEncodingCapabilityTest() {
+            if (encodingTestInProgress) {
+                console.warn('⚠️ Encoding test already in progress');
+                return;
+            }
+
+            encodingTestInProgress = true;
+            encodingTestResults = [];
+
+            console.log('\n' + '='.repeat(80));
+            console.log('🎬 ENCODING CAPABILITY TEST SUITE');
+            console.log('Testing if device can encode video at different resolutions/FPS at 12 Mbps');
+            console.log('='.repeat(80) + '\n');
+
+            setStatus('Running encoding capability test... This will take ~20 seconds.', 'info'); //#claude - changed from ~30s (was 5 configs * 6s = 30s, now 5 configs * 4s = 20s)
+
+            for (const config of ENCODING_TEST_CONFIGS) {
+                const result = await testEncodingCapability(config);
+                encodingTestResults.push(result);
+
+                // Brief pause between tests to allow system to settle
+                await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+
+            // Display summary
+            console.log('\n' + '='.repeat(80));
+            console.log('📊 ENCODING TEST RESULTS SUMMARY');
+            console.log('='.repeat(80) + '\n');
+
+            encodingTestResults.forEach(result => {
+                console.log(`${result.status} ${result.config}:`);
+                console.log(`  Requested: ${result.requestedResolution}@${result.requestedFPS}fps`);
+                console.log(`  Achieved:  ${result.actualResolution}@${result.actualFPS}fps`);
+                console.log(`  Encoding:  ${result.chunkCount}/${result.expectedChunks} chunks, ${result.avgBitrateMbps} Mbps actual`);
+                console.log(`  Timing:    Max error ${result.maxTimingErrorMs}ms, Size CV ${result.chunkSizeCV}`);
+                console.log('');
+            });
+
+            // Find best working configuration
+            const workingConfigs = encodingTestResults.filter(r => r.canEncode);
+            if (workingConfigs.length > 0) {
+                const best = workingConfigs[0]; // First success is highest capability
+                console.log(`🏆 RECOMMENDATION: Use ${best.actualResolution}@${best.actualFPS}fps for this device`);
+            } else {
+                console.warn('⚠️ WARNING: No configuration passed encoding test. Device may struggle with recording.');
+            }
+
+            console.log('\n' + '='.repeat(80) + '\n');
+
+            setStatus('Encoding capability test complete. Check console for results.', 'success');
+            encodingTestInProgress = false;
+        }
+
+        // TODO: Add UI button to trigger runEncodingCapabilityTest()
+        // For now, call it manually from console: runEncodingCapabilityTest()
+        console.log('💡 TIP: Run encoding test with: runEncodingCapabilityTest()');
+
+        // ========================================================================
+        // #claude v51: ENCODER CONFIGURATION TEST (MediaCapabilities API)
+        // ========================================================================
+        // Tests which encoder configuration works best on this device
+        // Stores result in localStorage for recording pipeline to use
+
+        /**
+         * Measure actual FPS from MP4/H.264 video using requestVideoFrameCallback
+         * #claude v59: Counts frames during playback for accurate FPS measurement
+         */
+        async function measureMP4FPS(chunks, mimeType, recordingDuration, cameraFPS) {
+            try {
+                if (chunks.length === 0) {
+                    console.warn('  ⚠️ No chunks captured - encoder failed');
+                    return 0;
+                }
+
+                const totalBytes = chunks.reduce((sum, chunk) => sum + chunk.size, 0);
+                console.log(`  📊 Captured ${chunks.length} chunks, ${(totalBytes / 1024).toFixed(0)}KB total`);
+
+                // Create blob and object URL
+                const blob = new Blob(chunks, { type: mimeType });
+                const videoURL = URL.createObjectURL(blob);
+
+                // Create video element for playback
+                const video = document.createElement('video');
+                video.muted = true;
+                video.playsInline = true;
+                video.src = videoURL;
+
+                // Wait for metadata to load
+                await new Promise((resolve, reject) => {
+                    video.onloadedmetadata = resolve;
+                    video.onerror = () => reject(new Error('Video failed to load'));
+                });
+
+                const videoDuration = video.duration;
+                console.log(`  📐 Video metadata: duration=${videoDuration.toFixed(2)}s`);
+
+                // Check if requestVideoFrameCallback is supported
+                if (!video.requestVideoFrameCallback) {
+                    console.warn('  ⚠️ requestVideoFrameCallback not supported, falling back to camera FPS');
+                    URL.revokeObjectURL(videoURL);
+                    return cameraFPS;
+                }
+
+                let frameCount = 0;
+                const frameTimestamps = [];
+
+                // Count frames using requestVideoFrameCallback
+                const countFrame = (now, metadata) => {
+                    frameCount++;
+                    frameTimestamps.push(metadata.mediaTime);
+
+                    // Continue counting if not ended
+                    if (!video.ended && video.readyState >= 2) {
+                        video.requestVideoFrameCallback(countFrame);
+                    }
+                };
+
+                // Start frame counting
+                video.requestVideoFrameCallback(countFrame);
+
+                // Play video at maximum speed (no audio, so it plays as fast as possible)
+                video.playbackRate = 1.0; // Normal speed to get accurate timing
+                await video.play();
+
+                // Wait for playback to complete
+                await new Promise((resolve) => {
+                    video.onended = resolve;
+                });
+
+                // Cleanup
+                URL.revokeObjectURL(videoURL);
+
+                console.log(`  📊 Frame Counting Results:`);
+                console.log(`     Frames counted: ${frameCount}`);
+                console.log(`     Expected frames (~${cameraFPS}fps * ${recordingDuration}s): ~${Math.round(cameraFPS * recordingDuration)}`);
+                console.log(`     Video duration: ${videoDuration.toFixed(3)}s`);
+                console.log(`     Recording duration: ${recordingDuration.toFixed(1)}s`);
+
+                if (frameCount < 2) {
+                    console.warn('  ⚠️ Not enough frames counted');
+                    return 0;
+                }
+
+                // Calculate FPS from frame timestamps
+                frameTimestamps.sort((a, b) => a - b);
+                const firstFrame = frameTimestamps[0];
+                const lastFrame = frameTimestamps[frameTimestamps.length - 1];
+                const actualDuration = lastFrame - firstFrame;
+
+                const actualFPS = actualDuration > 0 ? (frameCount / actualDuration) : 0;
+
+                console.log(`     Frame timestamp span: ${actualDuration.toFixed(3)}s`);
+                console.log(`     Calculated FPS: ${actualFPS.toFixed(2)}`);
+
+                // Check coverage
+                const coverageRatio = actualDuration / recordingDuration;
+                if (coverageRatio < 0.8) {
+                    console.warn(`     ⚠️ Frames only cover ${(coverageRatio * 100).toFixed(0)}% of recording!`);
+                    const effectiveFPS = frameCount / recordingDuration;
+                    console.log(`     Effective FPS: ${effectiveFPS.toFixed(2)} (over full ${recordingDuration}s)`);
+                    return effectiveFPS;
+                } else {
+                    console.log(`     ✅ Good frame coverage: ${(coverageRatio * 100).toFixed(0)}%`);
+                    return actualFPS;
+                }
+
+            } catch (err) {
+                console.error('  ❌ MP4 FPS measurement failed:', err);
+                return cameraFPS; // Fallback
+            }
+        }
+
+        /**
+         * Measure actual FPS from recorded video using EBML container parsing
+         * #claude v54: Real frame counting from WebM container structure
+         */
+        async function measureVideoFPS(chunks, mimeType, recordingDuration, cameraFPS) {
+            try {
+                // #claude v59: Use requestVideoFrameCallback for MP4/H.264
+                if (mimeType.includes('mp4') || mimeType.includes('avc')) {
+                    console.log('  🎬 Using requestVideoFrameCallback() for MP4 FPS measurement');
+                    return await measureMP4FPS(chunks, mimeType, recordingDuration, cameraFPS);
+                }
+
+                // WebM/VP8/VP9 - use EBML parsing (kept for reference, but VP8 is broken)
+                if (!mimeType.includes('webm')) {
+                    console.warn('  ⚠️ Unknown codec, falling back to camera FPS');
+                    return cameraFPS;
+                }
+
+                if (chunks.length === 0) {
+                    console.warn('  ⚠️ No chunks captured - encoder failed');
+                    return 0;
+                }
+
+                // Check if ts-ebml library is loaded
+                if (!window.EBML) {
+                    console.error('  ❌ ts-ebml not loaded, falling back to heuristic');
+                    return cameraFPS;
+                }
+
+                const totalBytes = chunks.reduce((sum, chunk) => sum + chunk.size, 0);
+                console.log(`  📊 Captured ${chunks.length} chunks, ${(totalBytes / 1024).toFixed(0)}KB total`);
+
+                // Reassemble chunks into single blob for parsing
+                const blob = new Blob(chunks, { type: mimeType });
+                const buffer = await blob.arrayBuffer();
+
+                console.log('  🔍 Parsing WebM container structure...');
+                const decoder = new EBML.Decoder();
+                const elements = decoder.decode(new Uint8Array(buffer));
+
+                let timecodeScale = 1_000_000; // Default: 1ms in nanoseconds
+                let videoTrackNumber = null;
+                let inTrackEntry = false;
+                let trackNumber = null;
+                let trackType = null;
+
+                // Cluster state
+                let inCluster = false;
+                let clusterTimecode = 0;
+
+                const frameTimestamps = []; // Timestamps in seconds
+
+                // #claude v57: Diagnostic counters to track parsing
+                let clusterCount = 0;
+                let blocksFound = 0;
+                let blocksParsedSuccess = 0;
+                let blocksParsedFailed = 0;
+                let blocksWrongTrack = 0; // #claude v57: Blocks that don't match video track
+                const clusterTimestampRanges = []; // Track timestamp range per cluster
+
+                // Parse EBML structure
+                for (const elem of elements) {
+                    // Get timecode scale (nanoseconds per timecode unit)
+                    if (elem.name === 'TimecodeScale' && typeof elem.value === 'number') {
+                        timecodeScale = elem.value;
+                    }
+
+                    // Identify video track
+                    if (elem.name === 'TrackEntry' && !elem.isEnd) {
+                        inTrackEntry = true;
+                        trackNumber = null;
+                        trackType = null;
+                    } else if (elem.name === 'TrackEntry' && elem.isEnd) {
+                        if (trackType === 1 && typeof trackNumber === 'number') {
+                            videoTrackNumber = trackNumber;
+                            console.log(`  🎥 Found video track: trackNumber=${videoTrackNumber}`);
+                        }
+                        inTrackEntry = false;
+                    } else if (inTrackEntry) {
+                        if (elem.name === 'TrackNumber') trackNumber = elem.value;
+                        if (elem.name === 'TrackType') trackType = elem.value; // 1 = video
+                    }
+
+                    // Track cluster timecode
+                    if (elem.name === 'Cluster' && !elem.isEnd) {
+                        inCluster = true;
+                        clusterTimecode = 0;
+                        clusterCount++;
+                        // #claude v57: Reduced logging - only log first and last clusters
+                        if (clusterCount === 1 || clusterCount % 10 === 0) {
+                            console.log(`  🔍 [Cluster ${clusterCount}] Entered`);
+                        }
+                    } else if (elem.name === 'Cluster' && elem.isEnd) {
+                        // #claude v57: Track cluster completion with timestamp range
+                        if (frameTimestamps.length > 0) {
+                            const framesBeforeCluster = frameTimestamps.length - 10;
+                            const clusterFrames = frameTimestamps.slice(Math.max(0, framesBeforeCluster));
+                            if (clusterFrames.length > 0) {
+                                const minT = Math.min(...clusterFrames);
+                                const maxT = Math.max(...clusterFrames);
+                                clusterTimestampRanges.push({ cluster: clusterCount, minT, maxT });
+                            }
+                        }
+                        inCluster = false;
+                    } else if (inCluster && elem.name === 'Timecode') {
+                        clusterTimecode = elem.value;
+                        // #claude v57: No per-timecode logging (too verbose)
+                    }
+
+                    // Count frames from SimpleBlock elements (also check Block for compatibility)
+                    if ((elem.name === 'SimpleBlock' || elem.name === 'Block') && elem.data && videoTrackNumber !== null) {
+                        blocksFound++; // #claude v57: Track blocks found
+                        const u8 = elem.data instanceof Uint8Array ? elem.data : new Uint8Array(elem.data);
+                        const blockBuf = u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength);
+
+                        try {
+                            const block = EBML.tools.readBlock(blockBuf);
+                            if (block.trackNumber === videoTrackNumber) {
+                                blocksParsedSuccess++; // #claude v57: Track successful parses
+
+                                // Calculate absolute timestamp in seconds
+                                const timecode = clusterTimecode + block.timecode;
+                                const timestampSec = (timecode * timecodeScale) / 1e9;
+
+                                // #claude v54: Check if block contains multiple frames (lacing)
+                                // MediaRecorder may pack multiple frames into one block for efficiency
+                                const framesInBlock = (block.frames && block.frames.length) ? block.frames.length : 1;
+
+                                // Add timestamp for each frame in the block
+                                // If no explicit frame timings, assume equal spacing
+                                for (let f = 0; f < framesInBlock; f++) {
+                                    frameTimestamps.push(timestampSec);
+                                }
+                            } else {
+                                blocksWrongTrack++; // #claude v57: Track non-video blocks (likely audio)
+                            }
+                        } catch (err) {
+                            blocksParsedFailed++; // #claude v57: Track failed parses
+                            // #claude v57: Don't log every parse failure (too verbose)
+                        }
+                    }
+                }
+
+                const frameCount = frameTimestamps.length;
+
+                // #claude v57: DIAGNOSTIC SUMMARY
+                console.log('\n  📊 === EBML PARSING DIAGNOSTIC SUMMARY ===');
+                console.log(`  🔍 Clusters found: ${clusterCount}`);
+                console.log(`  🔍 Blocks found: ${blocksFound}`);
+                console.log(`  🔍 Video blocks (track ${videoTrackNumber}): ${blocksParsedSuccess}`);
+                console.log(`  🔍 Non-video blocks (audio/other): ${blocksWrongTrack}`);
+                console.log(`  🔍 Blocks failed to parse: ${blocksParsedFailed}`);
+                console.log(`  🔍 Total frames collected: ${frameCount}`);
+                console.log(`  🔍 Expected frames (~30fps * 3s): ~90`);
+                console.log(`  🔍 Frame deficit: ${90 - frameCount} frames missing`);
+                if (clusterTimestampRanges.length > 0) {
+                    console.log(`  🔍 Timestamp coverage:`);
+                    const firstRange = clusterTimestampRanges[0];
+                    const lastRange = clusterTimestampRanges[clusterTimestampRanges.length - 1];
+                    console.log(`     First cluster: ${firstRange.minT.toFixed(4)}s - ${firstRange.maxT.toFixed(4)}s`);
+                    console.log(`     Last cluster: ${lastRange.minT.toFixed(4)}s - ${lastRange.maxT.toFixed(4)}s`);
+                    const actualSpan = lastRange.maxT - firstRange.minT;
+                    console.log(`     Total span: ${actualSpan.toFixed(4)}s (expected: 3.0s)`);
+
+                    // #claude v57: Detect encoder producing frames only at beginning
+                    const coverage = actualSpan / recordingDuration;
+                    console.log(`     Coverage: ${(coverage * 100).toFixed(1)}% of recording duration`);
+                    if (coverage < 0.5) {
+                        console.warn(`  ⚠️ WARNING: Encoder only produced frames in first ${actualSpan.toFixed(2)}s of ${recordingDuration}s recording!`);
+                        console.warn(`  ⚠️ This device/config may not support continuous frame encoding.`);
+                    }
+                }
+                console.log('  =====================================\n');
+
+                if (frameCount < 2) {
+                    console.warn('  ⚠️ Not enough frames found in EBML');
+                    return 0;
+                }
+
+                // #claude v54: Debug logging to diagnose FPS calculation
+                console.log(`  🔍 Debug: Total timestamps collected: ${frameCount}`);
+                console.log(`  🔍 Debug: First 5 timestamps (unsorted): [${frameTimestamps.slice(0, 5).map(t => t.toFixed(4)).join(', ')}]`);
+                console.log(`  🔍 Debug: Last 5 timestamps (unsorted): [${frameTimestamps.slice(-5).map(t => t.toFixed(4)).join(', ')}]`);
+
+                // #claude v56: CRITICAL FIX - Sort timestamps chronologically
+                // EBML blocks can appear out of order in the file structure
+                frameTimestamps.sort((a, b) => a - b);
+
+                console.log(`  🔍 Debug: First 5 timestamps (sorted): [${frameTimestamps.slice(0, 5).map(t => t.toFixed(4)).join(', ')}]`);
+                console.log(`  🔍 Debug: Last 5 timestamps (sorted): [${frameTimestamps.slice(-5).map(t => t.toFixed(4)).join(', ')}]`);
+
+                // Calculate duration from ACTUAL timestamps (don't trust metadata!)
+                const firstFrame = frameTimestamps[0]; // Now guaranteed to be earliest
+                const lastFrame = frameTimestamps[frameCount - 1]; // Now guaranteed to be latest
+                const durationSec = lastFrame - firstFrame;
+
+                console.log(`  🔍 Debug: First frame timestamp: ${firstFrame.toFixed(4)}s`);
+                console.log(`  🔍 Debug: Last frame timestamp: ${lastFrame.toFixed(4)}s`);
+                console.log(`  🔍 Debug: Calculated duration: ${durationSec.toFixed(4)}s`);
+                console.log(`  🔍 Debug: timecodeScale used: ${timecodeScale}`);
+
+                const actualFPS = durationSec > 0 ? (frameCount / durationSec) : 0;
+
+                console.log(`  📊 EBML Analysis:`);
+                console.log(`     Frames found: ${frameCount}`);
+                console.log(`     Duration: ${durationSec.toFixed(3)}s (from timestamps)`);
+                console.log(`     Recording duration: ${recordingDuration.toFixed(1)}s (actual)`);
+
+                // #claude v57: Check if timestamp coverage matches recording duration
+                const coverageRatio = durationSec / recordingDuration;
+                let reportedFPS = actualFPS; // Default to burst FPS
+                if (coverageRatio < 0.5) {
+                    console.warn(`     ⚠️ Frames only cover ${(coverageRatio * 100).toFixed(0)}% of recording!`);
+                    console.warn(`     ⚠️ Encoder may not support continuous encoding at this quality`);
+                    console.log(`     Burst FPS: ${actualFPS.toFixed(2)} (in first ${durationSec.toFixed(2)}s)`);
+                    const effectiveFPS = frameCount / recordingDuration;
+                    console.log(`     Effective FPS: ${effectiveFPS.toFixed(2)} (over full ${recordingDuration}s)`);
+                    reportedFPS = effectiveFPS; // #claude v57: Report effective FPS for incomplete coverage
+                } else {
+                    console.log(`     Actual FPS: ${actualFPS.toFixed(2)}`);
+                }
+
+                // Detect frame drops (gaps in timestamps)
+                let gaps = 0;
+                const expectedDelta = 1 / cameraFPS;
+                const uniqueTimestamps = [...new Set(frameTimestamps)].sort((a, b) => a - b);
+                console.log(`  🔍 Debug: Unique timestamps: ${uniqueTimestamps.length} (vs ${frameCount} total)`);
+
+                for (let i = 1; i < uniqueTimestamps.length; i++) {
+                    const delta = uniqueTimestamps[i] - uniqueTimestamps[i - 1];
+                    if (delta > expectedDelta * 1.5) {
+                        gaps++;
+                    }
+                }
+                if (gaps > 0) {
+                    console.log(`     Frame gaps detected: ${gaps}`);
+                }
+
+                return reportedFPS; // #claude v57: Return effective FPS when coverage is low
+
+            } catch (err) {
+                console.error('  ❌ EBML parsing failed:', err);
+                console.log('  ⚠️ Falling back to heuristic');
+                return cameraFPS; // Fallback
+            }
+        }
+
+        /**
+         * Test encoder configurations using MediaCapabilities API
+         * This determines which config works BEFORE recording starts
+         */
+        async function runEncoderConfigTest() {
+            console.log('\n' + '='.repeat(80));
+            console.log('🔧 ENCODER CONFIGURATION TEST V72');
+            console.log('V72 CHANGES:');
+            console.log('  • Simplified design: 24 Mbps only for H.264, VP8, VP9, H.265');
+            console.log('  • 4 codecs × 2 resolutions = 8 tests (vs 16 previously)');
+            console.log('  • CRITICAL FIX: Stop preview stream FIRST to get TRUE native resolution');
+            console.log('='.repeat(80) + '\n');
+
+            // #claude v61: Log test start to backend
+            if (window.clientLogger) {
+                window.clientLogger.event('encoder_test_started', {
+                    timestamp: new Date().toISOString()
+                });
+            }
+
+            const statusEl = document.getElementById('encoderStatus');
+            const resultsEl = document.getElementById('encoderTestResults');
+            const panel = document.getElementById('encoderTestPanel');
+
+            panel.style.display = 'block';
+            statusEl.innerHTML = '<span style="display: inline-block; animation: pulse 1.5s ease-in-out infinite;">🔄</span> Now testing encoder...';
+            statusEl.style.color = '#ff9500';
+            resultsEl.innerHTML = '<div style="color: #888;">Testing H.264 and H.265 codecs at 24 Mbps (1080x1440 resolution)...<br>This will take ~30 seconds.</div>';
+
+            // Show progress bar above video, hide any previous results
+            const progressContainer = document.getElementById('encoderProgressContainer');
+            const progressBar = document.getElementById('encoderProgressBar');
+            const progressText = document.getElementById('encoderProgressText');
+            progressContainer.style.display = 'block';
+            progressBar.style.width = '0%';
+            progressText.textContent = '0/2';
+            document.getElementById('encoderResultsAboveVideo').style.display = 'none';
+
+            // Pause AI evaluation during encoder test
+            stopAIQualityChecking();
+            console.log('⏸️ AI evaluation paused during encoder test');
+
+            // Add pulse animation if not already in document
+            if (!document.getElementById('pulseAnimation')) {
+                const style = document.createElement('style');
+                style.id = 'pulseAnimation';
+                style.textContent = '@keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.6; transform: scale(1.1); } }';
+                document.head.appendChild(style);
+            }
+
+            // Disable test button during test
+            document.getElementById('testEncoderBtn').disabled = true;
+
+            // #claude v72: CRITICAL FIX - Get main stream settings THEN stop it to free camera
+            const mainVideoTrack = stream.getVideoTracks()[0];
+            const mainSettings = mainVideoTrack.getSettings();
+
+            console.log('\n' + '='.repeat(80));
+            console.log('🎬 ENCODER TEST - 8 Mbps Bitrate (Testing if lower bitrate preserves native resolution)');
+            console.log('='.repeat(80));
+            console.log(`📐 Main preview stream resolution: ${mainSettings.width}x${mainSettings.height}`);
+            console.log(`🛑 V72: Stopping main preview stream to free camera for true native resolution...`);
+
+            // Stop ALL tracks from main stream to free camera completely
+            stream.getTracks().forEach(track => {
+                track.stop();
+                console.log(`  ✓ Stopped ${track.kind} track`);
+            });
+
+            // #claude v73: Preview will be recreated at native resolution (don't clear yet)
+            const preview = document.getElementById('preview');
+
+            // Wait a moment for camera to fully release
+            await new Promise(resolve => setTimeout(resolve, 500));
+            console.log(`✅ V72: Camera released, now requesting TRUE native max resolution...`);
+
+            // #claude v84: FINAL UNIVERSAL SOLUTION - Request 1440x1080 LANDSCAPE
+            // Strategy: Request 1440x1080 landscape (1.5MP) - cameras' natural orientation
+            // Benefits:
+            //   1. Avoids NotReadableError on Samsung S24 (single stream open, never reopen)
+            //   2. H.264/H.265 work on ALL devices (within encoder limits)
+            //   3. Matches cameras' natural landscape orientation (fixes preview display)
+            //   4. Good quality for facial recognition (1.5MP is sufficient)
+            //   5. Reasonable file sizes (~3-4GB for 30 min with H.264)
+            //   6. NO VP8/VP9 - H.264/H.265 only
+            let trueNativeStream;
+            let testResolutions; // Define in outer scope
+            try {
+                // v87: Unconstrained FPS - let each camera give its natural framerate (30fps, 60fps, etc.)
+                trueNativeStream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        width: { ideal: 1440 },   // Request LANDSCAPE (cameras' natural orientation)
+                        height: { ideal: 1080 },  // 1440x1080 = 1.5MP (safe for H.264 on all devices)
+                        facingMode: { exact: 'user' }
+                    },
+                    audio: {
+                        echoCancellation: false,
+                        noiseSuppression: false,
+                        autoGainControl: false
+                    }
+                });
+
+                const trueNativeTrack = trueNativeStream.getVideoTracks()[0];
+                const trueNativeSettings = trueNativeTrack.getSettings();
+                console.log(`🎯 V84: 1440x1080 LANDSCAPE resolution achieved: ${trueNativeSettings.width}x${trueNativeSettings.height} @ ${trueNativeSettings.frameRate}fps`);
+
+                const nativeAspectRatio = trueNativeSettings.width / trueNativeSettings.height;
+
+                console.log(`📐 V84: Resolution: ${trueNativeSettings.width}x${trueNativeSettings.height}`);
+                console.log(`📐 V84: Aspect ratio: ${nativeAspectRatio.toFixed(3)}`);
+                console.log(`✅ V84: 1440x1080 LANDSCAPE (1.5MP) - H.264/H.265 only, NO VP8/VP9`);
+
+                // #claude v84: Preview
+                preview.srcObject = trueNativeStream;
+                stream = trueNativeStream;
+                console.log(`✅ V84: Preview active at ${trueNativeSettings.width}x${trueNativeSettings.height}`);
+
+                // #claude v84: FINAL UNIVERSAL SOLUTION
+                // Request 1440x1080 LANDSCAPE (1.5MP) - cameras' natural orientation
+                // Single stream open (no reopening = no Samsung NotReadableError)
+                // H.264/H.265 works within hardware encoder limits on ALL devices
+                // NO VP8/VP9
+                testResolutions = [
+                    {
+                        name: '1440x1080 Landscape',
+                        width: trueNativeSettings.width,
+                        height: trueNativeSettings.height,
+                        frameRate: trueNativeSettings.frameRate,
+                        aspectRatio: nativeAspectRatio,
+                        stream: trueNativeStream  // #claude v83: Keep stream open throughout all tests
+                    }
+                ];
+
+            } catch (err) {
+                console.error(`❌ V72: Failed to get true native resolution:`, err);
+                statusEl.textContent = `Error: Could not determine native resolution`;
+                statusEl.style.color = '#ff3b30';
+                document.getElementById('testEncoderBtn').disabled = false;
+                return;
+            }
+
+            // #claude v73: Create only the 1080p stream (Native already exists as preview)
+            for (const resolution of testResolutions) {
+                try {
+                    // #claude v76: Don't stop other streams during initial setup
+                    // V75 test loop will handle stream lifecycle properly
+                    if (!resolution.stream) {
+                        // #claude v76: Removed stream stopping - causes v75 to recreate with wrong resolution
+                        // Android multiple camera issue is handled by v75 smart recreation in test loop
+
+                        // #claude: Detect Android for special constraint handling
+                        const isAndroid = /Android/i.test(navigator.userAgent);
+                        let streamCreated = false;
+
+                        // Android: Use EXACT width AND height - enforce the dimensions we calculated
+                        if (resolution.name !== 'Native Max' && isAndroid) {
+                            try {
+                                console.log(`🤖 Android - enforcing EXACT dimensions: ${resolution.width}x${resolution.height}`);
+
+                                resolution.stream = await navigator.mediaDevices.getUserMedia({
+                                    video: {
+                                        width: { exact: resolution.width },
+                                        height: { exact: resolution.height },
+                                        frameRate: { ideal: resolution.frameRate || 30 },
+                                        facingMode: { exact: 'user' }
+                                    },
+                                    audio: {
+                                        echoCancellation: false,
+                                        noiseSuppression: false,
+                                        autoGainControl: false
+                                    }
+                                });
+                                streamCreated = true;
+                                console.log(`✅ Android exact dimensions succeeded`);
+                            } catch (exactErr) {
+                                console.warn(`⚠️ Android exact dimensions failed:`, exactErr.message);
+                                try {
+                                    resolution.stream = await navigator.mediaDevices.getUserMedia({
+                                        video: {
+                                            width: { ideal: resolution.width },
+                                            height: { ideal: resolution.height },
+                                            frameRate: { ideal: resolution.frameRate || 30 },
+                                            facingMode: { exact: 'user' }
+                                        },
+                                        audio: {
+                                            echoCancellation: false,
+                                            noiseSuppression: false,
+                                            autoGainControl: false
+                                        }
+                                    });
+                                    streamCreated = true;
+                                    console.log(`✅ Android ideal dimensions succeeded`);
+                                } catch (idealErr) {
+                                    console.warn(`⚠️ All Android attempts failed:`, idealErr.message);
+                                }
+                            }
+                        }
+
+                        // iOS/iPad: Try exact width/height constraints first
+                        if (!streamCreated && resolution.name !== 'Native Max') {
+                            try {
+                                console.log(`🍎 iOS/iPad - attempting exact constraints: ${resolution.width}x${resolution.height}`);
+                                resolution.stream = await navigator.mediaDevices.getUserMedia({
+                                    video: {
+                                        width: { exact: resolution.width },
+                                        height: { exact: resolution.height },
+                                        frameRate: { ideal: resolution.frameRate || 30 },
+                                        facingMode: { exact: 'user' }
+                                    },
+                                    audio: {
+                                        echoCancellation: false,
+                                        noiseSuppression: false,
+                                        autoGainControl: false
+                                    }
+                                });
+                                streamCreated = true;
+                                console.log(`✅ Exact constraints succeeded for ${resolution.name}`);
+                            } catch (exactErr) {
+                                console.warn(`⚠️ Exact constraints failed for ${resolution.name}, falling back:`, exactErr.message);
+                            }
+                        }
+
+                        // Final fallback: ideal constraints (or for Native Max)
+                        if (!streamCreated) {
+                            console.log(`📹 Using ideal width/height constraints for ${resolution.name}`);
+                            resolution.stream = await navigator.mediaDevices.getUserMedia({
+                                video: {
+                                    width: { ideal: resolution.width },
+                                    height: { ideal: resolution.height },
+                                    frameRate: { ideal: resolution.frameRate || 30 },
+                                    facingMode: { exact: 'user' }
+                                },
+                                audio: {
+                                    echoCancellation: false,
+                                    noiseSuppression: false,
+                                    autoGainControl: false
+                                }
+                            });
+                        }
+                        console.log(`📹 V76: Created fresh stream for ${resolution.name}`);
+                        // #claude v76: Removed stoppedStreams restore logic - no longer stopping streams
+                    } else {
+                        console.log(`♻️  Reusing existing stream for ${resolution.name}`);
+                    }
+
+                    const track = resolution.stream.getVideoTracks()[0];
+                    const actualSettings = track.getSettings();
+                    resolution.actualWidth = actualSettings.width;
+                    resolution.actualHeight = actualSettings.height;
+                    resolution.actualFrameRate = actualSettings.frameRate;
+
+                    const actualAspectRatio = (actualSettings.width / actualSettings.height).toFixed(3);
+                    const requestedAspectRatio = resolution.aspectRatio ? resolution.aspectRatio.toFixed(3) : 'N/A';
+                    const aspectMatch = resolution.aspectRatio ? Math.abs(actualSettings.width / actualSettings.height - resolution.aspectRatio) < 0.01 : true;
+
+                    console.log(`✅ ${resolution.name} stream: ${actualSettings.width}x${actualSettings.height} @ ${actualSettings.frameRate}fps`);
+                    console.log(`   Requested: ${resolution.width}x${resolution.height} (AR: ${requestedAspectRatio})`);
+                    console.log(`   Actual:    ${actualSettings.width}x${actualSettings.height} (AR: ${actualAspectRatio}) ${aspectMatch ? '✅' : '⚠️ MISMATCH'}`);
+
+                    // #claude v67: Log stream creation
+                    if (window.clientLogger) {
+                        window.clientLogger.event('test_stream_created', {
+                            resolution: resolution.name,
+                            requestedWidth: resolution.width,
+                            requestedHeight: resolution.height,
+                            actualWidth: actualSettings.width,
+                            actualHeight: actualSettings.height,
+                            frameRate: actualSettings.frameRate,
+                            requestedAspectRatio: resolution.aspectRatio,
+                            actualAspectRatio: actualSettings.width / actualSettings.height,
+                            aspectRatioMatch: aspectMatch,
+                            isAndroid: /Android/i.test(navigator.userAgent)
+                        });
+                    }
+                } catch (streamErr) {
+                    console.error(`❌ Failed to create ${resolution.name} stream:`, streamErr);
+                    console.error(`   Error name: ${streamErr.name}, message: ${streamErr.message}`);
+                    statusEl.textContent = `Error: Could not create ${resolution.name} stream`;
+                    statusEl.style.color = '#ff3b30';
+                    document.getElementById('testEncoderBtn').disabled = false;
+
+                    // Log stream creation failure
+                    if (window.clientLogger) {
+                        window.clientLogger.error('stream_creation_failed', {
+                            resolution: resolution.name,
+                            requestedWidth: resolution.width,
+                            requestedHeight: resolution.height,
+                            errorName: streamErr.name,
+                            errorMessage: streamErr.message
+                        });
+                    }
+
+                    // Clean up any streams that were created
+                    testResolutions.forEach(res => {
+                        if (res.stream) {
+                            res.stream.getTracks().forEach(track => track.stop());
+                        }
+                    });
+                    return;
+                }
+            }
+
+            // #claude v86: ONLY H.264 and H.265 with fallback strings for older browsers
+            const allConfigurations = [
+                // H.264 (universal support) - try detailed first, fall back to simpler for old Chrome
+                {
+                    name: 'H.264 24 Mbps',
+                    videoBitsPerSecond: 24000000,
+                    audioBitsPerSecond: 320000,
+                    mimeTypeCandidates: [
+                        'video/mp4; codecs="avc1.42E01E,mp4a.40.2"',  // Modern: H.264 Baseline Profile with AAC audio
+                        'video/mp4; codecs="avc1.42E01E"',            // Fallback: H.264 without audio codec
+                        'video/mp4; codecs=avc1',                     // Old browsers: Basic H.264
+                        'video/mp4'                                   // Last resort: Let browser choose
+                    ]
+                },
+                // H.265/HEVC (Apple/Safari and modern Android)
+                {
+                    name: 'H.265 24 Mbps',
+                    videoBitsPerSecond: 24000000,
+                    audioBitsPerSecond: 320000,
+                    mimeTypeCandidates: [
+                        'video/mp4; codecs="hvc1.1.6.L93.B0,mp4a.40.2"',  // Modern: H.265 Main Profile with AAC
+                        'video/mp4; codecs="hvc1.1.6.L93.B0"',            // Fallback: H.265 without audio codec
+                        'video/mp4; codecs=hvc1',                         // Old browsers: Basic H.265
+                        'video/mp4; codecs=hevc'                          // Alternative H.265 name
+                    ]
+                }
+            ];
+
+            // #claude v88: Try each mimeType candidate until one is supported (for old browser compatibility)
+            console.log(`🔍 V88: Checking codec support for ${allConfigurations.length} configurations...`);
+            const configurations = allConfigurations.map(config => {
+                console.log(`  Testing ${config.name} with ${config.mimeTypeCandidates.length} candidates...`);
+                for (const mimeType of config.mimeTypeCandidates) {
+                    const isSupported = MediaRecorder.isTypeSupported(mimeType);
+                    console.log(`    ${isSupported ? '✅' : '❌'} "${mimeType}"`);
+                    if (isSupported) {
+                        console.log(`✅ ${config.name}: Using codec string "${mimeType}"`);
+                        return { ...config, mimeType };  // Return config with working mimeType
+                    }
+                }
+                console.log(`⏭️  Skipping ${config.name} - no supported codec strings found`);
+                return null;  // No working mimeType found
+            }).filter(config => config !== null);  // Remove unsupported configs
+
+            console.log(`📋 V88: Testing ${configurations.length} configs × ${testResolutions.length} resolutions = ${configurations.length * testResolutions.length} total tests`);
+
+            // #claude v88: CRITICAL - If no configs found, abort with helpful error
+            if (configurations.length === 0) {
+                const errorMsg = 'No supported video codecs found. Your browser may not support MediaRecorder API.';
+                console.error(`❌ ${errorMsg}`);
+                statusEl.textContent = errorMsg;
+                statusEl.style.color = '#ff3b30';
+                resultsEl.innerHTML = `<div style="color: #ff3b30; padding: 15px;">${errorMsg}<br><br>Tested: H.264, VP8, H.265<br>Browser: ${navigator.userAgent}</div>`;
+                document.getElementById('testEncoderBtn').disabled = false;
+
+                // Log to backend
+                if (window.clientLogger) {
+                    window.clientLogger.error('no_working_config_found', {
+                        totalConfigsTested: 0,
+                        allResults: []
+                    });
+                }
+                return;
+            }
+
+            const results = [];
+            let bestConfig = null;
+            let totalTestCount = 0;
+            const totalTests = configurations.length * testResolutions.length;
+
+            // #claude v67: OUTER LOOP - Test each resolution
+            for (let resIdx = 0; resIdx < testResolutions.length; resIdx++) {
+                const resolution = testResolutions[resIdx];
+
+                // #claude v81: SIMPLIFIED - No stream recreation needed
+                // Native Max stream is already open and stays open throughout all tests
+                // This eliminates race conditions, NotReadableError, and orientation issues
+
+                const videoTrack = resolution.stream.getVideoTracks()[0];
+                if (!videoTrack || videoTrack.readyState !== 'live') {
+                    console.error(`❌ V81: Native Max stream is not live! This should never happen.`);
+                    throw new Error('Native Max stream died unexpectedly');
+                }
+
+                const settings = videoTrack.getSettings();
+                console.log(`♻️  V81: Using Native Max stream: ${settings.width}x${settings.height} @ ${settings.frameRate}fps`);
+
+                // Store actual settings for results
+                resolution.actualWidth = settings.width;
+                resolution.actualHeight = settings.height;
+                resolution.actualFrameRate = settings.frameRate;
+
+                // #claude v81: Validate dimensions (should never fail since Native Max already opened successfully)
+                if (!settings.width || !settings.height || settings.width < 1 || settings.height < 1) {
+                    console.error(`❌ V81: Invalid video dimensions: ${settings.width}x${settings.height}`);
+                    throw new Error('Invalid stream dimensions');
+                }
+
+                // #claude v81: Update preview (already showing Native Max, but ensure it's set)
+                const preview = document.getElementById('preview');
+                preview.srcObject = resolution.stream;
+                stream = resolution.stream; // Update global stream reference
+                const testStream = resolution.stream; // #claude v81: Define testStream for MediaRecorder tests
+
+                console.log(`\n${'='.repeat(80)}`);
+                console.log(`📐 TESTING RESOLUTION ${resIdx + 1}/${testResolutions.length}: ${resolution.name} (${settings.width}x${settings.height})`);
+                console.log('='.repeat(80));
+
+                // #claude v67: INNER LOOP - Test each config at this resolution
+                for (let i = 0; i < configurations.length; i++) {
+                    const config = configurations[i];
+                    totalTestCount++;
+
+                    console.log(`\n🔧 Test ${totalTestCount}/${totalTests} - ${resolution.name} - ${config.name}`);
+
+                    // Update status in UI (encoder panel only - progress bar shows top status)
+                    // setStatus(`Now testing encoder ${totalTestCount}/${totalTests}: ${resolution.name} - ${config.name}...`, 'info'); // Removed - progress bar shows this
+                    statusEl.innerHTML = `<span style="display: inline-block; animation: pulse 1.5s ease-in-out infinite;">🔄</span> Now testing encoder ${totalTestCount}/${totalTests}: ${resolution.name} - ${config.name}...`;
+                    statusEl.style.color = '#ff9500';
+
+                    // Update progress bar above video
+                    const progressBar = document.getElementById('encoderProgressBar');
+                    const progressText = document.getElementById('encoderProgressText');
+                    const progressPercent = (totalTestCount / totalTests) * 100;
+                    progressBar.style.width = progressPercent + '%';
+                    progressText.textContent = `${totalTestCount}/${totalTests}`;
+
+                    // #claude v70: Extra delay before H.265 tests (prone to hanging after other codecs)
+                    if (config.name.includes('H.265')) {
+                        console.log(`  ⏸️ V70: Extra 2s pause before H.265 test (browser recovery)...`);
+                        await new Promise(resolve => setTimeout(resolve, 2000));
+                    }
+
+                const result = {
+                    configIndex: i,
+                    configName: config.name,
+                    videoBitrate: config.videoBitsPerSecond || 'browser-managed',
+                    audioBitrate: config.audioBitsPerSecond || 'browser-managed',
+                    codec: config.mimeType || 'browser-default',
+                    resolutionName: resolution.name, // #claude v67: Track which resolution was tested
+                    resolutionIndex: resIdx, // #claude v67: Track resolution index
+                    testNumber: totalTestCount, // #claude v67: Overall test number (1-16)
+                    mediaCapabilitiesSupported: false,
+                    mediaCapabilitiesResult: null,
+                    mediaRecorderWorks: false,
+                    actualFPS: undefined, // #claude v51: Measured FPS from test recording
+                    requestedFPS: undefined, // #claude v51: Requested FPS
+                    fpsStable: undefined, // #claude v51: Whether FPS is stable (>90% of requested)
+                    recommended: false,
+                    error: null
+                };
+
+                // Test 1: MediaCapabilities API (if config has bitrate)
+                if (config.videoBitsPerSecond && navigator.mediaCapabilities && navigator.mediaCapabilities.encodingInfo) {
+                    try {
+                        // Validate configuration before calling encodingInfo
+                        const width = parseInt(settings.width);
+                        const height = parseInt(settings.height);
+                        const framerate = parseFloat(settings.frameRate) || 30;
+                        const bitrate = parseInt(config.videoBitsPerSecond);
+
+                        if (!width || !height || !config.mimeType || !bitrate || width <= 0 || height <= 0) {
+                            console.warn(`  ⚠️ Skipping MediaCapabilities check - invalid config:`, {
+                                width: width,
+                                height: height,
+                                mimeType: config.mimeType,
+                                bitrate: bitrate
+                            });
+                        } else {
+                            const videoConfig = {
+                                contentType: config.mimeType,
+                                width: width,
+                                height: height,
+                                bitrate: bitrate,
+                                framerate: framerate
+                            };
+
+                            console.log(`  🔍 MediaCapabilities check with:`, videoConfig);
+
+                            const capabilityInfo = await navigator.mediaCapabilities.encodingInfo({
+                                type: 'record',
+                                video: videoConfig
+                            });
+
+                            result.mediaCapabilitiesSupported = true;
+                            result.mediaCapabilitiesResult = {
+                                supported: capabilityInfo.supported,
+                                smooth: capabilityInfo.smooth,
+                                powerEfficient: capabilityInfo.powerEfficient
+                            };
+
+                            console.log(`  📊 MediaCapabilities:`, capabilityInfo);
+
+                            if (!capabilityInfo.supported) {
+                                const rejectReason = `MediaCapabilities.encodingInfo() returned supported=false for ${config.mimeType} at ${settings.width}x${settings.height} ${config.videoBitsPerSecond/1000000}Mbps`;
+                                console.log(`  ❌ Config ${i + 1} rejected by MediaCapabilities`);
+                                console.log(`     Reason: ${rejectReason}`);
+                                result.error = rejectReason;
+                                result.rejectedByMediaCapabilities = true;
+                                results.push(result);
+                                continue; // Skip MediaRecorder test if MediaCapabilities says no
+                            }
+                        }
+                    } catch (capErr) {
+                        console.warn(`  ⚠️ MediaCapabilities check failed:`, capErr.message);
+                        result.error = capErr.message;
+                        // Don't block the test - continue to try MediaRecorder anyway
+                    }
+                }
+
+                // Test 2: Try creating MediaRecorder AND record test clip to measure actual FPS
+                try {
+                    const options = {
+                        videoBitsPerSecond: config.videoBitsPerSecond,
+                        audioBitsPerSecond: config.audioBitsPerSecond,
+                        mimeType: config.mimeType
+                    };
+
+                    // Remove undefined properties
+                    Object.keys(options).forEach(key => options[key] === undefined && delete options[key]);
+
+                    // #claude: Log what dimensions the stream's video track actually has RIGHT NOW
+                    const streamTrack = testStream.getVideoTracks()[0];
+                    const streamSettings = streamTrack.getSettings();
+                    console.log(`  📹 Video track dimensions at recording time: ${streamSettings.width}x${streamSettings.height}`);
+                    console.log(`     (This is what MediaRecorder will encode)`);
+
+                    const testRecorder = new MediaRecorder(testStream, options); // #claude v61: Use testStream (1080p) instead of stream
+                    const testChunks = [];
+
+                    // #claude v52: Log actual MediaRecorder attributes chosen by browser
+                    console.log(`  📋 MediaRecorder created with actual attributes:`);
+                    console.log(`     mimeType: ${testRecorder.mimeType}`);
+                    console.log(`     videoBitsPerSecond: ${testRecorder.videoBitsPerSecond || 'browser-managed'}`);
+                    console.log(`     audioBitsPerSecond: ${testRecorder.audioBitsPerSecond || 'browser-managed'}`);
+
+                    // Collect chunks
+                    testRecorder.ondataavailable = (event) => {
+                        if (event.data.size > 0) {
+                            testChunks.push(event.data);
+                        }
+                    };
+
+                    // #claude v60: Add error handler to catch immediate encoder rejections
+                    let encoderError = null;
+                    testRecorder.onerror = (event) => {
+                        encoderError = event.error;
+                        console.error(`  ❌ Encoder error: ${event.error.message}`);
+                    };
+
+                    // Try starting it (this is where actual failure happens on budget devices)
+                    testRecorder.start(100); // Request frequent chunks for testing
+
+                    // Wait a moment to see if error fires immediately
+                    await new Promise(resolve => setTimeout(resolve, 200));
+
+                    // #claude v60: Check for encoder error before checking state
+                    if (encoderError) {
+                        throw encoderError;
+                    }
+
+                    if (testRecorder.state === 'recording') {
+                        console.log(`  ✅ Config ${i + 1} started recording, testing FPS...`);
+
+                        // #claude v70: Add timeout protection to prevent infinite hangs
+                        // Record for 5 seconds with 10s timeout
+                        const recordingWait = new Promise(resolve => setTimeout(resolve, 5000));
+                        const recordingTimeout = new Promise((_, reject) =>
+                            setTimeout(() => reject(new Error('Recording timeout - encoder hung after 10s')), 10000)
+                        );
+
+                        try {
+                            await Promise.race([recordingWait, recordingTimeout]);
+                        } catch (timeoutErr) {
+                            console.error(`  ❌ V70: ${timeoutErr.message}`);
+                            throw timeoutErr;
+                        }
+
+                        // Stop and wait for chunks with 5s timeout
+                        const recordingStopped = new Promise(resolve => {
+                            testRecorder.onstop = resolve;
+                        });
+                        const stopTimeout = new Promise((_, reject) =>
+                            setTimeout(() => reject(new Error('Stop timeout - onstop event never fired')), 5000)
+                        );
+
+                        try {
+                            testRecorder.stop();
+                            await Promise.race([recordingStopped, stopTimeout]);
+                        } catch (stopErr) {
+                            console.error(`  ❌ V70: ${stopErr.message}`);
+                            throw stopErr;
+                        }
+
+                        // #claude v52: Calculate actual bitrate from recorded data
+                        const totalBytes = testChunks.reduce((sum, chunk) => sum + chunk.size, 0);
+                        const durationSeconds = 5.0; // #claude v61: Updated from 3.0 to 5.0
+
+                        // #claude v70: Detect encoder that produced zero data (complete failure)
+                        if (totalBytes === 0) {
+                            console.error(`  ❌ V70: Encoder produced ZERO data - complete failure`);
+                            throw new Error('Encoder produced no data (0 bytes recorded)');
+                        }
+
+                        const actualBitrateBps = Math.round((totalBytes * 8) / durationSeconds);
+                        const actualBitrateMbps = (actualBitrateBps / 1000000).toFixed(2);
+
+                        console.log(`  📊 Actual recorded bitrate: ${actualBitrateMbps} Mbps (${(totalBytes / 1024).toFixed(0)}KB in ${durationSeconds}s)`);
+                        console.log(`  📐 Resolution: ${settings.width}x${settings.height}`); // #claude v52: Log resolution
+
+                        // Calculate actual FPS by analyzing the video
+                        // #claude v53: Pass camera FPS to ensure consistent baseline across all config tests
+                        const cameraFPS = settings.frameRate || 30;
+                        console.log(`  🔍 V60: About to measure FPS for config ${i + 1}...`);
+
+                        let actualFPS;
+                        try {
+                            actualFPS = await measureVideoFPS(testChunks, testRecorder.mimeType, 5.0, cameraFPS); // #claude v61: Updated from 3.0 to 5.0
+                            console.log(`  🔍 V60: FPS measurement returned: ${actualFPS} (type: ${typeof actualFPS})`);
+                        } catch (fpsErr) {
+                            console.error(`  ❌ V60: FPS measurement threw error: ${fpsErr.message}`, fpsErr);
+                            actualFPS = cameraFPS; // Fallback
+                        }
+
+                        console.log(`  🔍 V60: Setting result properties...`);
+                        result.mediaRecorderWorks = true;
+                        result.actualFPS = actualFPS; // #claude v58: This is already the effective FPS from measureVideoFPS()
+                        result.requestedFPS = cameraFPS;
+                        console.log(`  🔍 V60: Checking FPS stability...`);
+                        // #claude v58: FPS stability check - actualFPS here is the return value from measureVideoFPS()
+                        // measureVideoFPS() returns effective FPS when coverage < 50% (e.g., 7.33 fps over 3s)
+                        // So this check correctly identifies unstable encoders
+                        result.fpsStable = actualFPS >= (result.requestedFPS * 0.9); // Within 90% of requested
+                        console.log(`  🔍 V60: FPS stable = ${result.fpsStable}`);
+                        // #claude v52: Store actual encoder attributes
+                        result.actualMimeType = testRecorder.mimeType;
+                        result.actualVideoBitrate = testRecorder.videoBitsPerSecond || actualBitrateBps;
+                        result.actualAudioBitrate = testRecorder.audioBitsPerSecond || 'browser-managed';
+                        result.measuredBitrateMbps = actualBitrateMbps;
+                        result.testFileSize = totalBytes;
+                        result.actualResolution = `${resolution.actualWidth}x${resolution.actualHeight}`; // #claude v71: Use resolution object's stored values
+
+                        console.log(`  🔍 V60: About to log FPS results...`);
+                        // #claude v60: Wrap logging in try-catch to catch any errors
+                        try {
+                            console.log(`  📊 Measured FPS: ${actualFPS.toFixed(2)} (requested: ${result.requestedFPS})`); // #claude v59: Generic label (EBML or requestVideoFrameCallback)
+                            console.log(`  ${result.fpsStable ? '✅' : '⚠️'} FPS ${result.fpsStable ? 'stable' : 'unstable - may drop frames'}`);
+                        } catch (logErr) {
+                            console.error(`  ❌ V60: Error logging FPS: ${logErr.message}`, logErr);
+                            console.log(`  📊 Measured FPS: ${actualFPS} (requested: ${result.requestedFPS})`);
+                        }
+
+                        // #claude v57: Store test video for download/inspection
+                        const testBlob = new Blob(testChunks, { type: testRecorder.mimeType });
+                        result.testVideoBlob = testBlob;
+                        result.testVideoURL = URL.createObjectURL(testBlob);
+                        console.log(`  💾 Test video available for download (${(testBlob.size / 1024).toFixed(0)}KB)`);
+
+                        // #claude: Read REAL encoded dimensions from the blob (Android may differ from stream)
+                        try {
+                            const realDimensions = await getRealEncodedDimensions(testBlob);
+                            result.encodedWidth = realDimensions.width;
+                            result.encodedHeight = realDimensions.height;
+                            result.encodedResolution = `${realDimensions.width}x${realDimensions.height}`;
+                            console.log(`  🎞️  REAL encoded dimensions: ${realDimensions.width}x${realDimensions.height}`);
+
+                            // #claude v74: Detect encoder failure (0x0 dimensions means encoding failed)
+                            if (realDimensions.width === 0 || realDimensions.height === 0) {
+                                const errorMsg = `Encoder produced corrupt video (0x0 dimensions) - hardware encoder may not support ${settings.width}x${settings.height} at ${config.videoBitrate/1000000}Mbps`;
+                                console.error(`  ❌ V74: ${errorMsg}`);
+                                result.error = errorMsg;
+                                result.dimensionMismatch = true;
+                                // Still mark as "working" since MediaRecorder started, but flag the issue
+                            } else {
+                                // Check if Android rotated/cropped the video
+                                const dimensionsMatch = (realDimensions.width === resolution.actualWidth && realDimensions.height === resolution.actualHeight) ||
+                                                       (realDimensions.width === resolution.actualHeight && realDimensions.height === resolution.actualWidth);
+                                if (!dimensionsMatch) {
+                                    console.warn(`  ⚠️  MISMATCH! Stream: ${resolution.actualWidth}x${resolution.actualHeight}, Encoded: ${realDimensions.width}x${realDimensions.height}`);
+                                    result.dimensionMismatch = true;
+                                }
+                            }
+                        } catch (dimErr) {
+                            console.error(`  ❌ Could not read encoded dimensions:`, dimErr.message);
+                            result.encodedWidth = null;
+                            result.encodedHeight = null;
+                            result.encodedResolution = 'unknown';
+                        }
+
+                        // #claude v58: ONLY select stable configs during loop
+                        // Fallback to working (but unstable) configs happens AFTER loop
+                        if (!bestConfig && result.fpsStable) {
+                            bestConfig = { ...config, configIndex: i };
+                            result.recommended = true;
+                            console.log(`  🏆 Recommended config: ${config.name}`);
+                        }
+                    } else {
+                        console.log(`  ❌ Config ${i + 1} failed: MediaRecorder in ${testRecorder.state} state`);
+                    }
+
+                } catch (recErr) {
+                    console.error(`  ❌ V60: Config ${i + 1} failed with error:`, recErr.message);
+                    console.error(`  ❌ V60: Full error:`, recErr);
+                    result.error = recErr.message;
+                }
+
+                console.log(`  🔍 V60: Pushing result for config ${i + 1} to results array`);
+                results.push(result);
+                console.log(`  🔍 V60: Config ${i + 1} complete. Moving to next config...`);
+
+                // #claude v67: Log config test result to backend
+                if (window.clientLogger) {
+                    window.clientLogger.event('config_test_result', {
+                        testNumber: totalTestCount,
+                        totalTests: totalTests,
+                        resolutionName: resolution.name,
+                        configIndex: i,
+                        configName: config.name,
+                        success: result.mediaRecorderWorks,
+                        actualFPS: result.actualFPS,
+                        fpsStable: result.fpsStable,
+                        error: result.error,
+                        resolution: result.actualResolution,
+                        measuredBitrate: result.measuredBitrateMbps
+                    });
+                }
+
+                // #claude v67: Small delay between tests to let browser cleanup resources
+                if (totalTestCount < totalTests) {
+                    console.log(`  ⏸️  Pausing 500ms before next test...`);
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                }
+            } // End inner loop (configs)
+        } // End outer loop (resolutions)
+
+            console.log(`\n🔍 V60: All ${configurations.length} configs tested. Processing results...`);
+
+            // #claude v61: Log test completion
+            if (window.clientLogger) {
+                window.clientLogger.event('encoder_test_completed', {
+                    totalConfigsTested: configurations.length,
+                    workingConfigs: results.filter(r => r.mediaRecorderWorks).length,
+                    stableConfigs: results.filter(r => r.fpsStable).length
+                });
+            }
+
+            // #claude v58: Fallback selection - if no stable config found, use first working config
+            if (!bestConfig) {
+                const firstWorkingConfig = results.find(r => r.mediaRecorderWorks);
+                if (firstWorkingConfig) {
+                    const config = configurations[firstWorkingConfig.configIndex];
+                    bestConfig = { ...config, configIndex: firstWorkingConfig.configIndex };
+                    firstWorkingConfig.recommended = true;
+                    console.log(`  ⚠️ No stable config found. Using fallback: ${config.name} (FPS may be unstable)`);
+                }
+            }
+
+            // Store best config in localStorage for recording pipeline
+            if (bestConfig) {
+                // Find the result object for the best config to get FPS data
+                const bestResult = results.find(r => r.configIndex === bestConfig.configIndex);
+
+                // #claude v70: Use bestResult.actualResolution instead of settings (which is out of scope)
+                const storedConfig = {
+                    configIndex: bestConfig.configIndex,
+                    configName: bestConfig.name,
+                    videoBitsPerSecond: bestConfig.videoBitsPerSecond,
+                    audioBitsPerSecond: bestConfig.audioBitsPerSecond,
+                    mimeType: bestConfig.mimeType,
+                    testedResolution: bestResult?.actualResolution || 'unknown',
+                    testedFPS: bestResult?.requestedFPS || 30,
+                    actualFPS: bestResult?.actualFPS, // #claude v51: Measured FPS from test
+                    fpsStable: bestResult?.fpsStable, // #claude v51: Whether FPS was stable
+                    testedAt: new Date().toISOString(),
+                    userAgent: navigator.userAgent
+                };
+                localStorage.setItem('bestEncoderConfig', JSON.stringify(storedConfig));
+                console.log('\n✅ Stored best config in localStorage:', storedConfig);
+
+                // #claude v61: Log best config to backend
+                if (window.clientLogger) {
+                    window.clientLogger.event('best_config_selected', {
+                        configIndex: bestConfig.configIndex,
+                        configName: bestConfig.name,
+                        codec: bestConfig.mimeType,
+                        videoBitrate: bestConfig.videoBitsPerSecond,
+                        actualFPS: bestResult?.actualFPS,
+                        fpsStable: bestResult?.fpsStable,
+                        resolution: bestResult?.actualResolution
+                    });
+                }
+            } else {
+                console.warn('\n⚠️ No working configuration found!');
+
+                // #claude v61: Log failure to find working config
+                if (window.clientLogger) {
+                    window.clientLogger.error('no_working_config_found', {
+                        totalConfigsTested: configurations.length,
+                        allResults: results.map(r => ({
+                            name: r.configName,
+                            error: r.error
+                        }))
+                    });
+                }
+            }
+
+            // #claude v64: Show the results panel
+            document.getElementById('encoderTestPanel').style.display = 'block';
+
+            // Display results in UI
+            displayEncoderTestResults(results, bestConfig);
+
+            // #claude v73: Clean up test streams EXCEPT 1440x1080 Landscape (which is the preview)
+            let previewStream = null;
+            testResolutions.forEach(res => {
+                if (res.stream && res.name !== '1440x1080 Landscape') {
+                    res.stream.getTracks().forEach(track => track.stop());
+                    console.log(`🔄 ${res.name} stream stopped and cleaned up`);
+                } else if (res.name === '1440x1080 Landscape') {
+                    previewStream = res.stream;
+                    console.log(`♻️  ${res.name} stream kept alive as preview`);
+                }
+            });
+
+            // #claude v89: CRITICAL - Restore preview to active stream
+            if (previewStream) {
+                const preview = document.getElementById('preview');
+                preview.srcObject = previewStream;
+                stream = previewStream; // Update global stream reference
+                console.log(`✅ V89: Preview reconnected to 1440x1080 stream for AI quality checks`);
+            } else {
+                console.error(`❌ V89: Preview stream not found, preview will be black!`);
+            }
+
+            // Re-enable test button
+            document.getElementById('testEncoderBtn').disabled = false;
+
+            // #claude: Log capability info for debugging
+            console.log('\n' + '='.repeat(80));
+            console.log('🔧 DEVICE CAPABILITIES');
+            console.log('='.repeat(80));
+            const capInfo = gatherCapabilityInfo();
+            console.log('Codec Support:');
+            Object.entries(capInfo.codecSupport).forEach(([codec, supported]) => {
+                console.log(`  ${supported ? '✅' : '❌'} ${codec.toUpperCase()}`);
+            });
+            console.log(`\nHardware:`);
+            console.log(`  CPU Cores: ${capInfo.hardware.cores}`);
+            console.log(`  Memory: ${capInfo.hardware.memory}`);
+            console.log(`  Platform: ${capInfo.hardware.platform}`);
+            console.log(`\nScreen: ${capInfo.screen.resolution} @ ${capInfo.screen.dpr}x DPR`);
+            if (capInfo.camera) {
+                console.log(`\nCamera Capabilities:`);
+                if (capInfo.camera.capabilities) {
+                    console.log(`  Resolution Range: ${capInfo.camera.capabilities.widthRange} x ${capInfo.camera.capabilities.heightRange}`);
+                    console.log(`  FPS Range: ${capInfo.camera.capabilities.fpsRange}`);
+                }
+                if (capInfo.camera.currentSettings) {
+                    console.log(`  Current: ${capInfo.camera.currentSettings.width}x${capInfo.camera.currentSettings.height} @ ${capInfo.camera.currentSettings.fps}fps`);
+                }
+            }
+
+            // Log final summary
+            console.log('\n' + '='.repeat(80));
+            console.log('📊 ENCODER TEST SUMMARY');
+            console.log('='.repeat(80));
+            if (bestConfig) {
+                const bestResult = results.find(r => r.configIndex === bestConfig.configIndex);
+                console.log(`🏆 Best Config: ${bestConfig.name}`);
+                console.log(`   Requested: ${bestResult?.videoBitrate} video, ${bestResult?.audioBitrate} audio`);
+                console.log(`   Requested Codec: ${bestResult?.codec}`);
+                // #claude v52: Show actual encoder attributes
+                if (bestResult?.actualMimeType) {
+                    console.log(`   Actual Resolution: ${bestResult.actualResolution}`); // #claude v52
+                    console.log(`   Actual Codec: ${bestResult.actualMimeType}`);
+                    console.log(`   Measured Bitrate: ${bestResult.measuredBitrateMbps} Mbps`);
+                    console.log(`   Test File: ${(bestResult.testFileSize / 1024).toFixed(0)}KB (5s recording)`); // #claude v61: Updated from 3s
+                }
+                if (bestResult?.actualFPS) { // #claude v59: Measured FPS (any method)
+                    console.log(`   Measured FPS: ${bestResult.actualFPS.toFixed(2)} (requested: ${bestResult.requestedFPS})`);
+                    console.log(`   FPS Stability: ${bestResult.fpsStable ? '✅ Stable' : '⚠️ Unstable'}`);
+                }
+            } else {
+                console.log('❌ No working configuration found');
+            }
+            console.log('='.repeat(80) + '\n');
+        }
+
+        /**
+         * Display encoder test results in UI
+         */
+        async function displayEncoderTestResults(results, bestConfig) {  // #claude: Made async for upload
+            const statusEl = document.getElementById('encoderStatus');
+            const resultsEl = document.getElementById('encoderTestResults');
+            const summaryEl = document.getElementById('encoderSummary'); // #claude v82
+
+            if (bestConfig) {
+                statusEl.textContent = `✅ Best config: ${bestConfig.name}`;
+                statusEl.style.color = '#34c759';
+            } else {
+                statusEl.textContent = '❌ No working configuration found';
+                statusEl.style.color = '#ff3b30';
+            }
+
+            // #claude v82: Create compact summary - one line per test with algorithm and FPS
+            let summaryHtml = '<strong>Test Results Summary:</strong><br><br>';
+            summaryHtml += '<div style="display: grid; grid-template-columns: 20px 70px 120px 70px; gap: 8px; align-items: center;">';
+
+            results.forEach(result => {
+                // Extract codec name from config name (e.g., "H.264" from "H.264 High Quality (24 Mbps)")
+                const codecName = result.configName.split(' ')[0]; // Get first word (H.264, VP8, VP9, H.265)
+                const fps = result.actualFPS !== undefined ? `${result.actualFPS.toFixed(1)} fps` : 'N/A';
+                const status = result.mediaRecorderWorks ? (result.fpsStable ? '✅' : '⚠️') : '❌';
+
+                summaryHtml += `
+                    <div>${status}</div>
+                    <div>${codecName}</div>
+                    <div style="color: #888;">${result.resolutionName}</div>
+                    <div style="color: ${result.fpsStable ? '#34c759' : '#ff9500'}; font-weight: 600;">${fps}</div>
+                `;
+            });
+
+            summaryHtml += '</div>';
+            // summaryEl.innerHTML = summaryHtml; // Removed - only show summary above video
+            // summaryEl.style.display = 'block'; // Removed - only show summary above video
+
+            let html = '<div style="font-size: 13px;">';
+
+            results.forEach(result => {
+                const bgColor = result.recommended ? 'rgba(52, 199, 89, 0.1)' :
+                                result.mediaRecorderWorks ? 'rgba(255, 149, 0, 0.1)' :
+                                'rgba(255, 59, 48, 0.1)';
+                const borderColor = result.recommended ? '#34c759' :
+                                   result.mediaRecorderWorks ? '#ff9500' :
+                                   '#ff3b30';
+
+                html += `
+                    <div style="margin-bottom: 15px; padding: 12px; background: ${bgColor}; border-left: 4px solid ${borderColor}; border-radius: 6px;">
+                        <div style="font-weight: 600; margin-bottom: 8px;">
+                            ${result.recommended ? '🏆 ' : ''}Test ${result.testNumber}: ${result.resolutionName} - ${result.configName}
+                        </div>
+                        <div style="color: #aaa; font-size: 12px; line-height: 1.6;">
+                            <div><strong>Resolution:</strong> ${result.resolutionName}</div>
+                            <div>Bitrate: ${result.videoBitrate} video, ${result.audioBitrate} audio</div>
+                            <div>Codec: ${result.codec}</div>
+                `;
+
+                if (result.mediaCapabilitiesResult) {
+                    html += `
+                        <div style="margin-top: 6px; padding-top: 6px; border-top: 1px solid rgba(255,255,255,0.1);">
+                            <strong>MediaCapabilities:</strong>
+                            ${result.mediaCapabilitiesResult.supported ? '✅' : '❌'} Supported,
+                            ${result.mediaCapabilitiesResult.smooth ? '✅' : '❌'} Smooth,
+                            ${result.mediaCapabilitiesResult.powerEfficient ? '✅' : '❌'} Power Efficient
+                        </div>
+                    `;
+                }
+
+                html += `
+                        <div style="margin-top: 6px; padding-top: 6px; border-top: 1px solid rgba(255,255,255,0.1);">
+                            <strong>MediaRecorder Test:</strong> ${result.mediaRecorderWorks ? '✅ Works' : '❌ Failed'}
+                        </div>
+                `;
+
+                // #claude v52: Show actual encoder attributes chosen by browser
+                if (result.actualMimeType) {
+                    // #claude: Check if encoded dimensions differ from stream dimensions
+                    const hasMismatch = result.dimensionMismatch || (result.encodedResolution && result.encodedResolution !== result.actualResolution);
+                    const mismatchWarning = hasMismatch ? ' ⚠️' : '';
+
+                    html += `
+                        <div style="margin-top: 6px; padding-top: 6px; border-top: 1px solid rgba(255,255,255,0.1);">
+                            <strong>Actual Encoder Attributes:</strong><br>
+                            <div style="margin-left: 10px; margin-top: 4px;">
+                                Stream Resolution: <strong>${result.actualResolution}</strong><br>
+                                Encoded Resolution: <strong style="color: ${hasMismatch ? '#ff9500' : 'inherit'};">${result.encodedResolution || result.actualResolution}${mismatchWarning}</strong><br>
+                                ${hasMismatch ? '<span style="color: #ff9500; font-size: 11px;">⚠️ Android encoder changed dimensions</span><br>' : ''}
+                                Codec: <code style="background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 3px; font-size: 11px;">${result.actualMimeType}</code><br>
+                                Measured Bitrate: <strong>${result.measuredBitrateMbps} Mbps</strong><br>
+                                Test File: ${(result.testFileSize / 1024).toFixed(0)}KB (5s recording)
+                            </div>
+                        </div>
+                    `;
+                }
+
+                // Show FPS test results if measured // #claude v59: Generic label for any measurement method
+                if (result.actualFPS !== undefined) {
+                    const fpsColor = result.fpsStable ? '#34c759' : '#ff9500';
+                    html += `
+                        <div style="margin-top: 6px; padding-top: 6px; border-top: 1px solid rgba(255,255,255,0.1);">
+                            <strong>Measured FPS:</strong> <span style="color: ${fpsColor};">${result.actualFPS.toFixed(2)} fps</span> (requested: ${result.requestedFPS} fps)<br>
+                            ${result.fpsStable ? '✅ Stable frame rate' : '⚠️ Frame drops detected'}
+                        </div>
+                    `;
+                }
+
+                // #claude v67: Add download button for test video with resolution in filename
+                if (result.testVideoURL) {
+                    const ext = result.actualMimeType?.includes('webm') ? 'webm' : 'mp4';
+                    const resName = result.resolutionName.toLowerCase().replace(/\s+/g, '_');
+                    html += `
+                        <div style="margin-top: 6px; padding-top: 6px; border-top: 1px solid rgba(255,255,255,0.1);">
+                            <a href="${result.testVideoURL}" download="test_${result.testNumber}_${resName}_${result.configName.toLowerCase().replace(/\s+/g, '_')}.${ext}" style="display: inline-block; background: #007aff; color: white; padding: 6px 12px; border-radius: 4px; text-decoration: none; font-size: 12px;">
+                                📥 Download Test Video
+                            </a>
+                        </div>
+                    `;
+                }
+
+                if (result.error) {
+                    html += `<div style="color: #ff3b30; margin-top: 6px;">Error: ${result.error}</div>`;
+                }
+
+                html += `
+                        </div>
+                    </div>
+                `;
+            });
+
+            html += '</div>';
+
+            if (bestConfig) {
+                // Find FPS info for display
+                const bestResult = results.find(r => r.configIndex === bestConfig.configIndex);
+
+                // #claude: Show encoded resolution if different from stream
+                let resolutionInfo = '';
+                if (bestResult?.actualResolution) {
+                    const hasMismatch = bestResult.dimensionMismatch || (bestResult.encodedResolution && bestResult.encodedResolution !== bestResult.actualResolution);
+                    if (hasMismatch && bestResult.encodedResolution) {
+                        resolutionInfo = `<br>Resolution: <strong>${bestResult.actualResolution}</strong> → Encoded: <strong style="color: #ff9500;">${bestResult.encodedResolution}</strong>`;
+                    } else {
+                        resolutionInfo = `<br>Resolution: <strong>${bestResult.encodedResolution || bestResult.actualResolution}</strong>`;
+                    }
+                }
+
+                const fpsInfo = bestResult?.actualFPS // #claude v59: Measured FPS (any method)
+                    ? `<br>Measured FPS: <strong>${bestResult.actualFPS.toFixed(2)} fps</strong> ${bestResult.fpsStable ? '✅' : '⚠️'}`
+                    : '';
+                // #claude v52: Add bitrate info
+                const bitrateInfo = bestResult?.measuredBitrateMbps
+                    ? `<br>Measured Bitrate: <strong>${bestResult.measuredBitrateMbps} Mbps</strong>`
+                    : '';
+
+                html += `
+                    <div style="margin-top: 15px; padding: 12px; background: rgba(0, 122, 255, 0.1); border-radius: 6px; font-size: 13px;">
+                        <strong>✓ Configuration saved!</strong><br>
+                        Recording page will use: <strong>${bestConfig.name}</strong>${resolutionInfo}${fpsInfo}${bitrateInfo}
+                    </div>
+                `;
+            }
+
+            resultsEl.innerHTML = html;
+
+            // Hide progress bar and show results above video
+            document.getElementById('encoderProgressContainer').style.display = 'none';
+            const resultsAboveVideo = document.getElementById('encoderResultsAboveVideo');
+            const summaryAboveVideo = document.getElementById('encoderSummaryAboveVideo');
+            summaryAboveVideo.innerHTML = summaryHtml;
+            resultsAboveVideo.style.display = 'block';
+
+            // #claude: Upload test videos to server before starting AI
+            console.log('🎬 About to upload test videos...', results.length, 'results');
+            try {
+                await uploadTestVideos(results);
+                console.log('✅ Upload function completed');
+            } catch (err) {
+                console.error('❌ Test video upload failed (non-critical):', err);
+            }
+
+            // Resume AI evaluation after uploads complete
+            startAIQualityChecking();
+            console.log('▶️ AI evaluation resumed after uploads complete');
+        }
+
+        /**
+         * Read the REAL encoded dimensions from a video blob
+         * (Android MediaRecorder often encodes different dimensions than requested)
+         */
+        async function getRealEncodedDimensions(blob) {
+            return new Promise((resolve, reject) => {
+                const video = document.createElement('video');
+                video.preload = 'metadata';
+                video.muted = true;
+
+                video.onloadedmetadata = () => {
+                    URL.revokeObjectURL(video.src);
+                    resolve({
+                        width: video.videoWidth,
+                        height: video.videoHeight
+                    });
+                };
+
+                video.onerror = () => {
+                    URL.revokeObjectURL(video.src);
+                    reject(new Error('Failed to load video metadata'));
+                };
+
+                video.src = URL.createObjectURL(blob);
+            });
+        }
+
+        // #claude: Gather comprehensive capability info for debugging encoder issues
+        function gatherCapabilityInfo() {
+            const capabilityInfo = {
+                // Codec support (what MediaRecorder can encode)
+                codecSupport: {
+                    h264: MediaRecorder.isTypeSupported('video/mp4;codecs=avc1'),
+                    h265_hvc1: MediaRecorder.isTypeSupported('video/mp4;codecs=hvc1'),
+                    h265_hevc: MediaRecorder.isTypeSupported('video/mp4;codecs=hevc'),
+                    vp8: MediaRecorder.isTypeSupported('video/webm;codecs=vp8'),
+                    vp9: MediaRecorder.isTypeSupported('video/webm;codecs=vp9'),
+                    av1: MediaRecorder.isTypeSupported('video/webm;codecs=av01')
+                },
+
+                // Hardware info (performance indicators)
+                hardware: {
+                    cores: navigator.hardwareConcurrency || 'unknown',
+                    memory: navigator.deviceMemory ? `${navigator.deviceMemory}GB` : 'unknown',
+                    platform: navigator.platform,
+                    maxTouchPoints: navigator.maxTouchPoints  // Helps distinguish tablets/phones
+                },
+
+                // Screen info
+                screen: {
+                    resolution: `${window.screen.width}x${window.screen.height}`,
+                    dpr: window.devicePixelRatio || 1,
+                    colorDepth: window.screen.colorDepth
+                }
+            };
+
+            // Camera capabilities (if stream is available)
+            if (stream) {
+                try {
+                    const videoTrack = stream.getVideoTracks()[0];
+                    if (videoTrack) {
+                        const capabilities = videoTrack.getCapabilities();
+                        const settings = videoTrack.getSettings();
+
+                        capabilityInfo.camera = {
+                            // What the camera CAN do (ranges)
+                            capabilities: {
+                                widthRange: capabilities.width ? `${capabilities.width.min}-${capabilities.width.max}` : 'unknown',
+                                heightRange: capabilities.height ? `${capabilities.height.min}-${capabilities.height.max}` : 'unknown',
+                                fpsRange: capabilities.frameRate ? `${capabilities.frameRate.min}-${capabilities.frameRate.max}` : 'unknown',
+                                facingMode: capabilities.facingMode || ['unknown']
+                            },
+                            // What it's currently doing
+                            currentSettings: {
+                                width: settings.width,
+                                height: settings.height,
+                                fps: settings.frameRate,
+                                facingMode: settings.facingMode,
+                                aspectRatio: settings.aspectRatio
+                            }
+                        };
+                    }
+                } catch (e) {
+                    console.warn('Could not get camera capabilities:', e.message);
+                    capabilityInfo.camera = { error: e.message };
+                }
+            }
+
+            return capabilityInfo;
+        }
+
+        /**
+         * Sanitize codec name for use in filename
+         */
+        function sanitizeCodecName(configName, resolutionName) {
+            // Extract codec name from configName (e.g., "H.264 24 Mbps" -> "H264_24Mbps")
+            let codec = configName
+                .replace(/\./g, '')           // Remove dots: H.264 -> H264
+                .replace(/\s+/g, '_')         // Replace spaces with underscores
+                .replace(/[^a-zA-Z0-9_]/g, '') // Remove special characters
+                .replace(/_+/g, '_');         // Collapse multiple underscores
+
+            // Sanitize resolution (e.g., "Native Max" -> "NativeMax")
+            let resolution = resolutionName
+                .replace(/\s+/g, '')          // Remove spaces
+                .replace(/[^a-zA-Z0-9]/g, ''); // Remove special characters
+
+            return `${resolution}_${codec}`;
+        }
+
+        /**
+         * Upload encoder test videos to server (optional, non-critical)
+         */
+        async function uploadTestVideos(results) {
+            console.log('🔍 uploadTestVideos called with', results.length, 'results');
+
+            // Check if backend URL is available
+            if (typeof BACKEND_URL === 'undefined') {
+                console.log('⏭️ Backend URL not configured, skipping test video upload');
+                return;
+            }
+
+            console.log('📤 Starting upload of encoder test videos...', {BACKEND_URL});
+
+            // Show upload progress bar
+            const uploadProgressContainer = document.getElementById('uploadProgressContainer');
+            const uploadProgressBar = document.getElementById('uploadProgressBar');
+            const uploadProgressText = document.getElementById('uploadProgressText');
+            uploadProgressContainer.style.display = 'block';
+
+            const participantName = localStorage.getItem('participantName') || 'Unknown';
+            const sessionId = localStorage.getItem('testSessionId') || localStorage.getItem('sessionId');  // #claude: Check both testSessionId (camera test) and sessionId (recording)
+
+            if (!sessionId) {
+                console.log('⏭️ No session ID found, skipping test video upload');
+                uploadProgressContainer.style.display = 'none';
+                return;
+            }
+
+            console.log('📋 Upload using session ID:', sessionId);
+
+            const totalVideos = results.filter(r => r.testVideoBlob).length;
+            let uploadedCount = 0;
+            let failedCount = 0;
+
+            // Initialize progress
+            uploadProgressText.textContent = `0/${totalVideos}`;
+            uploadProgressBar.style.width = '0%';
+
+            for (const result of results) {
+                if (!result.testVideoBlob) {
+                    console.log(`⏭️ Skipping ${result.configName} - no video blob`);
+                    continue;
+                }
+
+                try {
+                    console.log(`📤 Uploading test video: ${result.resolutionName} - ${result.configName}`);
+
+                    // Prepare metadata with codec-based filename
+                    const videoId = sanitizeCodecName(result.configName, result.resolutionName);  // e.g., "NativeMax_H264_24Mbps"
+                    const metadata = {
+                        sessionId: sessionId,
+                        videoId: videoId,
+                        participantName: participantName,
+                        videoType: 'encoder_test',
+                        testNumber: result.testNumber,
+                        resolution: result.resolutionName,
+                        codec: result.configName,
+                        mimeType: result.codec,
+                        videoBitrate: result.videoBitrate,
+                        audioBitrate: result.audioBitrate,
+                        requestedFPS: result.requestedFPS,
+                        actualFPS: result.actualFPS,
+                        fpsStable: result.fpsStable,
+                        actualResolution: result.actualResolution,
+                        // #claude: Add REAL encoded dimensions from blob
+                        encodedResolution: result.encodedResolution || result.actualResolution,
+                        encodedWidth: result.encodedWidth,
+                        encodedHeight: result.encodedHeight,
+                        dimensionMismatch: result.dimensionMismatch || false,
+                        measuredBitrateMbps: result.measuredBitrateMbps,
+                        testFileSize: result.testFileSize,
+                        mediaRecorderWorks: result.mediaRecorderWorks,
+                        recommended: result.recommended || false,
+                        timestamp: new Date().toISOString(),
+                        // #claude: Add device info to metadata
+                        deviceInfo: globalDeviceInfo || {
+                            userAgent: navigator.userAgent,
+                            screenSize: `${window.screen.width}x${window.screen.height}`,
+                            manufacturer: 'unknown'
+                        },
+                        // #claude: Add capability info for better debugging than model name alone
+                        capabilities: gatherCapabilityInfo()
+                    };
+
+                    // Upload in chunks (1MB chunks)
+                    const CHUNK_SIZE = 1024 * 1024; // 1MB
+                    const totalChunks = Math.ceil(result.testVideoBlob.size / CHUNK_SIZE);
+
+                    for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
+                        const start = chunkIndex * CHUNK_SIZE;
+                        const end = Math.min(start + CHUNK_SIZE, result.testVideoBlob.size);
+                        const chunk = result.testVideoBlob.slice(start, end);
+
+                        const formData = new FormData();
+                        formData.append('chunk', chunk);
+                        formData.append('chunk_index', chunkIndex.toString());
+                        formData.append('total_chunks', totalChunks.toString());
+                        formData.append('session_id', sessionId);
+                        formData.append('video_id', videoId);
+                        formData.append('video_type', 'encoder_test');  // #claude: Mark as encoder test
+
+                        const response = await fetch(`${BACKEND_URL}/api/upload/chunk`, {
+                            method: 'POST',
+                            body: formData
+                        });
+
+                        if (!response.ok) {
+                            throw new Error(`Chunk upload failed: ${response.statusText}`);
+                        }
+                    }
+
+                    // Upload metadata after all chunks
+                    const metadataResponse = await fetch(`${BACKEND_URL}/api/upload/metadata`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(metadata)
+                    });
+
+                    if (!metadataResponse.ok) {
+                        throw new Error(`Metadata upload failed: ${metadataResponse.statusText}`);
+                    }
+
+                    uploadedCount++;
+                    console.log(`✅ Uploaded test video ${result.testNumber}/${results.length}: ${result.configName}`);
+
+                    // Update progress bar
+                    const completedCount = uploadedCount + failedCount;
+                    uploadProgressText.textContent = `${completedCount}/${totalVideos}`;
+                    uploadProgressBar.style.width = `${(completedCount / totalVideos) * 100}%`;
+
+                } catch (uploadErr) {
+                    failedCount++;
+                    console.error(`❌ Failed to upload test video ${result.testNumber}:`, uploadErr);
+
+                    // Update progress bar
+                    const completedCount = uploadedCount + failedCount;
+                    uploadProgressText.textContent = `${completedCount}/${totalVideos}`;
+                    uploadProgressBar.style.width = `${(completedCount / totalVideos) * 100}%`;
+                }
+            }
+
+            console.log(`📤 Test video upload complete: ${uploadedCount} succeeded, ${failedCount} failed`);
+
+            // Upload FPS results summary as JSON file
+            try {
+                console.log('📊 Creating FPS results summary...');
+
+                const summary = {
+                    sessionId: sessionId,
+                    participantName: participantName,
+                    timestamp: new Date().toISOString(),
+                    // #claude: Add device and capability info to summary for debugging
+                    deviceInfo: globalDeviceInfo || {
+                        userAgent: navigator.userAgent,
+                        manufacturer: 'unknown'
+                    },
+                    capabilities: gatherCapabilityInfo(),
+                    testResults: results.map(r => ({
+                        testNumber: r.testNumber,
+                        resolution: r.resolutionName,
+                        codec: r.configName,
+                        mimeType: r.codec,
+                        videoBitrate: r.videoBitrate,
+                        audioBitrate: r.audioBitrate,
+                        requestedFPS: r.requestedFPS,
+                        actualFPS: r.actualFPS,
+                        fpsStable: r.fpsStable,
+                        actualResolution: r.actualResolution,
+                        encodedResolution: r.encodedResolution,
+                        encodedWidth: r.encodedWidth,
+                        encodedHeight: r.encodedHeight,
+                        dimensionMismatch: r.dimensionMismatch || false,
+                        measuredBitrateMbps: r.measuredBitrateMbps,
+                        testFileSize: r.testFileSize,
+                        mediaRecorderWorks: r.mediaRecorderWorks,
+                        recommended: r.recommended || false
+                    })),
+                    summary: {
+                        totalTests: results.length,
+                        successfulUploads: uploadedCount,
+                        failedUploads: failedCount
+                    }
+                };
+
+                // Convert summary to JSON blob
+                const summaryJSON = JSON.stringify(summary, null, 2);
+                const summaryBlob = new Blob([summaryJSON], { type: 'application/json' });
+
+                console.log('📤 Uploading FPS results summary...');
+
+                // Upload summary as chunked file
+                const CHUNK_SIZE = 1024 * 1024; // 1MB
+                const totalChunks = Math.ceil(summaryBlob.size / CHUNK_SIZE);
+                const summaryVideoId = 'test_results_summary';
+
+                for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
+                    const start = chunkIndex * CHUNK_SIZE;
+                    const end = Math.min(start + CHUNK_SIZE, summaryBlob.size);
+                    const chunk = summaryBlob.slice(start, end);
+
+                    const formData = new FormData();
+                    formData.append('chunk', chunk);
+                    formData.append('chunk_index', chunkIndex.toString());
+                    formData.append('total_chunks', totalChunks.toString());
+                    formData.append('session_id', sessionId);
+                    formData.append('video_id', summaryVideoId);
+                    formData.append('video_type', 'encoder_test');
+                    formData.append('file_extension', 'json');  // Hint for backend to use .json extension
+
+                    const response = await fetch(`${BACKEND_URL}/api/upload/chunk`, {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`Summary chunk upload failed: ${response.statusText}`);
+                    }
+                }
+
+                // Upload summary metadata
+                const summaryMetadata = {
+                    sessionId: sessionId,
+                    videoId: summaryVideoId,
+                    participantName: participantName,
+                    videoType: 'encoder_test',
+                    fileType: 'summary_json',
+                    fileSize: summaryBlob.size,
+                    timestamp: new Date().toISOString()
+                };
+
+                const metadataResponse = await fetch(`${BACKEND_URL}/api/upload/metadata`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(summaryMetadata)
+                });
+
+                if (metadataResponse.ok) {
+                    console.log('✅ FPS results summary uploaded successfully');
+                } else {
+                    console.warn('⚠️ Summary metadata upload failed (non-critical)');
+                }
+
+            } catch (summaryErr) {
+                console.error('❌ Failed to upload FPS summary (non-critical):', summaryErr);
+            }
+
+            // Hide upload progress bar
+            uploadProgressContainer.style.display = 'none';
+
+            if (window.clientLogger) {
+                window.clientLogger.event('test_videos_uploaded', {
+                    uploadedCount,
+                    failedCount,
+                    totalVideos: totalVideos
+                });
+            }
+        }
+
+        // ========================================================================
+        // #claude v51: Show encoder test button after camera starts
+        // ========================================================================
+        // Add this to startCamera() success path
+
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', () => {
+            stopAIQualityChecking();
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+            }
+        });
+    </script>
+
+    <!-- #claude v61: Client-side logging for test page -->
+    <script src="/js/logger.js?v=51"></script>
+    <script>
+        // #claude v68: Initialize logger for camera test page with backend session
+        (async function initializeTestLogging() {
+            try {
+                // #claude v68: Get participant name from URL or localStorage (set by landing page)
+                const urlParams = new URLSearchParams(window.location.search);
+                const urlName = urlParams.get('name');
+                const localStorageName = localStorage.getItem('participantName');
+                const testStorageName = localStorage.getItem('testParticipantName');
+
+                console.log(`🔍 V68 Debug - URL name: "${urlName}", localStorage participantName: "${localStorageName}", testParticipantName: "${testStorageName}"`);
+
+                const participantName = urlName || localStorageName || testStorageName;
+
+                if (!participantName || participantName.trim() === '') {
+                    console.error('❌ V68: No participant name found - BLOCKING TEST');
+                    alert('⚠️ Please enter your name on the main page first.\n\nGo to the landing page and enter your name before accessing the camera test.');
+                    window.location.href = 'index.html';
+                    return;
+                }
+
+                console.log(`✅ V68: Participant name: "${participantName}"`);
+
+                // #claude: TEMPORARY - Force clear old test sessions (they're in wrong folder: facial_recordings vs camera_tests)
+                // TODO: Remove this after Feb 10, 2026 (all old sessions will be expired by then)
+                console.log('🔄 Clearing test session to force recreation in camera_tests folder...');
+                localStorage.removeItem('testSessionId');
+
+                // Check if we have a test session ID
+                let testSessionId = localStorage.getItem('testSessionId');
+
+                if (!testSessionId) {
+                    // Create a real backend session for test logging
+                    console.log(`📝 V68: Creating backend session for test logs (participant: ${participantName})...`);
+                    const response = await fetch('/api/session/create', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            participant_name: participantName,
+                            videosToRecord: 1,
+                            testMode: true, // Flag this as a test session
+                            video_type: 'encoder_test'  // #claude: Save to camera_tests folder
+                        })
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`Failed to create session: ${response.status}`);
+                    }
+
+                    const data = await response.json();
+                    testSessionId = data.session_id; // #claude v63: Fix - backend returns snake_case not camelCase
+                    localStorage.setItem('testSessionId', testSessionId);
+                    console.log(`✅ V68: Backend session created: ${testSessionId} (participant: ${participantName})`);
+                } else {
+                    console.log(`📝 V68: Reusing existing test session: ${testSessionId} (participant: ${participantName})`);
+                }
+
+                // #claude v68: Validate session ID before initializing logger
+                if (!testSessionId) {
+                    throw new Error('Session ID is undefined - backend response format may have changed');
+                }
+
+                // Initialize logger with backend session ID
+                if (window.clientLogger) {
+                    window.clientLogger.init(testSessionId);
+
+                    // #claude v71: Helper function to extract manufacturer from user agent
+                    function extractManufacturer() {
+                        const uaString = navigator.userAgent;
+                        let manufacturer = 'unknown';
+
+                        // Android pattern: Look for text between "Android X;" and ")"
+                        const androidMatch = uaString.match(/Android [^;]+;\s*([^)]+)\)/);
+                        if (androidMatch && androidMatch[1]) {
+                            const deviceString = androidMatch[1].trim();
+                            // Common manufacturers
+                            const knownBrands = ['Samsung', 'Google', 'Pixel', 'Xiaomi', 'OnePlus', 'Huawei', 'Oppo', 'Vivo', 'Nokia', 'Motorola', 'LG', 'Sony', 'Realme', 'Asus', 'Nothing'];
+                            for (const brand of knownBrands) {
+                                if (deviceString.includes(brand)) {
+                                    manufacturer = brand;
+                                    break;
+                                }
+                            }
+                            // If no known brand found, try first word
+                            if (manufacturer === 'unknown' && deviceString.includes(' ')) {
+                                manufacturer = deviceString.split(' ')[0];
+                            }
+                        }
+                        return manufacturer;
+                    }
+
+                    // #claude v70: Get device model using User-Agent Client Hints API
+                    // #claude v87: Detect PWA mode (iOS: navigator.standalone, others: display-mode media query)
+                    const isPWA = window.matchMedia('(display-mode: standalone)').matches ||
+                                  window.navigator.standalone === true;
+
+                    let deviceInfo = {
+                        participantName: participantName,
+                        userAgent: navigator.userAgent,
+                        screenSize: `${window.screen.width}x${window.screen.height}`,
+                        displayMode: isPWA ? 'pwa' : 'browser',  // v87: Distinguish PWA from browser
+                        backendSession: true,
+                        manufacturer: extractManufacturer() // #claude v71: Always extract manufacturer
+                    };
+
+                    // #claude: Store globally for use in upload metadata
+                    globalDeviceInfo = deviceInfo;
+
+                    // Try to get high-entropy device information (requires permission in some browsers)
+                    if (navigator.userAgentData && navigator.userAgentData.getHighEntropyValues) {
+                        navigator.userAgentData.getHighEntropyValues(['model', 'platform', 'platformVersion', 'architecture', 'bitness', 'fullVersionList'])
+                            .then(ua => {
+                                console.log('✅ V70: Device info obtained:', ua);
+                                deviceInfo.deviceModel = ua.model || 'unknown';
+                                deviceInfo.platform = ua.platform || 'unknown';
+                                deviceInfo.platformVersion = ua.platformVersion || 'unknown';
+                                deviceInfo.architecture = ua.architecture || 'unknown';
+                                deviceInfo.bitness = ua.bitness || 'unknown';
+                                // manufacturer already extracted and stored in deviceInfo
+
+                                // #claude: Update global deviceInfo
+                                globalDeviceInfo = deviceInfo;
+
+                                // #claude v70: Display device info on page
+                                const deviceInfoDiv = document.getElementById('deviceInfoContent');
+                                if (deviceInfoDiv) {
+                                    deviceInfoDiv.innerHTML = `
+                                        <div style="margin-bottom: 4px;"><strong>API Available:</strong> YES ✅</div>
+                                        <div style="margin-bottom: 4px;"><strong>Display Mode:</strong> ${deviceInfo.displayMode.toUpperCase()} ${deviceInfo.displayMode === 'pwa' ? '📱' : '🌐'}</div>
+                                        <div style="margin-bottom: 4px;"><strong>Manufacturer:</strong> ${deviceInfo.manufacturer}</div>
+                                        <div style="margin-bottom: 4px;"><strong>Model:</strong> ${ua.model || '(empty)'}</div>
+                                        <div style="margin-bottom: 4px;"><strong>Platform:</strong> ${ua.platform || '(empty)'}</div>
+                                        <div style="margin-bottom: 4px;"><strong>Platform Version:</strong> ${ua.platformVersion || '(empty)'}</div>
+                                        <div style="margin-bottom: 4px;"><strong>Architecture:</strong> ${ua.architecture || '(empty)'}</div>
+                                        <div style="margin-bottom: 4px;"><strong>Bitness:</strong> ${ua.bitness || '(empty)'}</div>
+                                        <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #444;"><strong>User Agent:</strong><br>${navigator.userAgent}</div>
+                                    `;
+                                }
+
+                                // Log with device info
+                                window.clientLogger.event('test_page_loaded', deviceInfo);
+                            })
+                            .catch(err => {
+                                console.warn('⚠️ V70: Could not get high-entropy device info:', err.message);
+
+                                // #claude v70: Display error on page
+                                const deviceInfoDiv = document.getElementById('deviceInfoContent');
+                                if (deviceInfoDiv) {
+                                    deviceInfoDiv.innerHTML = `
+                                        <div style="margin-bottom: 4px;"><strong>API Available:</strong> YES (but failed) ⚠️</div>
+                                        <div style="margin-bottom: 4px;"><strong>Display Mode:</strong> ${deviceInfo.displayMode.toUpperCase()} ${deviceInfo.displayMode === 'pwa' ? '📱' : '🌐'}</div>
+                                        <div style="margin-bottom: 4px;"><strong>Error:</strong> ${err.message}</div>
+                                        <div style="margin-bottom: 4px;"><strong>Manufacturer:</strong> ${deviceInfo.manufacturer} (from UA)</div>
+                                        <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #444;"><strong>User Agent:</strong><br>${navigator.userAgent}</div>
+                                    `;
+                                }
+
+                                // Log without device model info
+                                window.clientLogger.event('test_page_loaded', deviceInfo);
+                            });
+                    } else {
+                        console.log('ℹ️ V70: User-Agent Client Hints API not available');
+
+                        // #claude v70: Display API unavailable on page
+                        const deviceInfoDiv = document.getElementById('deviceInfoContent');
+                        if (deviceInfoDiv) {
+                            deviceInfoDiv.innerHTML = `
+                                <div style="margin-bottom: 4px;"><strong>API Available:</strong> NO ❌</div>
+                                <div style="margin-bottom: 4px;"><strong>Display Mode:</strong> ${deviceInfo.displayMode.toUpperCase()} ${deviceInfo.displayMode === 'pwa' ? '📱' : '🌐'}</div>
+                                <div style="margin-bottom: 4px; color: #ff9500;">navigator.userAgentData.getHighEntropyValues() is not supported on this browser</div>
+                                <div style="margin-bottom: 4px;"><strong>Manufacturer:</strong> ${deviceInfo.manufacturer} (from UA)</div>
+                                <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #444;"><strong>User Agent:</strong><br>${navigator.userAgent}</div>
+                            `;
+                        }
+
+                        // Log without device model info
+                        window.clientLogger.event('test_page_loaded', deviceInfo);
+                    }
+
+                    console.log(`✅ V68: Logger initialized with backend session: ${testSessionId} (participant: ${participantName})`);
+                    console.log(`📁 V68: Logs will be saved to: /data/facial_recordings/${testSessionId}/client.log`);
+                } else {
+                    console.warn('⚠️ V68: clientLogger not available');
+                }
+            } catch (error) {
+                console.error('❌ V68: Failed to initialize backend logging:', error);
+                // Fall back to console-only logging
+                console.warn('⚠️ V68: Continuing without backend logging');
+            }
+        })();
+    </script>
+</body>
+</html>

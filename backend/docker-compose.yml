@@ -1,0 +1,62 @@
+version: '3.8'
+
+services:
+  triton:
+    image: nvcr.io/nvidia/tritonserver:24.01-py3
+    container_name: facial-app-triton
+    restart: unless-stopped
+
+    # GPU configuration
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+    # Environment variables
+    environment:
+      - CUDA_VISIBLE_DEVICES=0
+      - NVIDIA_VISIBLE_DEVICES=0
+
+    # Network ports
+    ports:
+      - "8000:8000"   # HTTP inference endpoint
+      - "8001:8001"   # gRPC inference endpoint
+      - "8002:8002"   # Prometheus metrics
+
+    # Volume mounts
+    volumes:
+      - ../ai-models/triton_models:/models:ro
+
+    # Triton server command
+    # --model-repository: Path to model repository
+    # --log-verbose: Verbose logging level (1)
+    # --strict-model-config: Require config.pbtxt for all models
+    # --backend-directory: TensorRT backend location
+    command: >
+      tritonserver
+      --model-repository=/models
+      --log-verbose=1
+      --strict-model-config=true
+      --backend-config=tensorrt,coalesce-request-input=true
+      --exit-on-error=false
+      --allow-grpc=true
+      --allow-http=true
+      --allow-metrics=true
+
+    # Health check
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/v2/health/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+    # Logging
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"

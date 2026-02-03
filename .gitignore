@@ -1,0 +1,59 @@
+# Node.js dependencies
+node_modules/
+package-lock.json
+yarn.lock
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+.venv
+
+# Logs
+logs/
+*.log
+backend.log
+https-frontend.log
+https-server.log
+
+# Data files (participant data)
+data/
+*.db
+*.sqlite
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# SSL certificates (if sensitive)
+ssl/*.key
+ssl/*.pem
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build outputs
+dist/
+build/
+*.egg-info/
+
+# AI models (large files)
+ai-models/**/*.pth
+ai-models/**/*.onnx
+ai-models/**/*.pt
+ai-models/**/*.h5
+ai-models/**/*.pb

@@ -1,0 +1,187 @@
+<!DOCTYPE html> <!--#claude-->
+<html lang="en"> <!--#claude-->
+<head> <!--#claude-->
+    <meta charset="UTF-8"> <!--#claude-->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"> <!--#claude-->
+    <meta name="apple-mobile-web-app-capable" content="yes"> <!--#claude-->
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"> <!--#claude-->
+    <meta name="apple-mobile-web-app-title" content="FaceData"> <!--#claude-->
+    <title>Session Complete - Facial Data Collection</title> <!--#claude-->
+
+    <!-- PWA Manifest --> <!--#claude-->
+    <link rel="manifest" href="/manifest.json"> <!--#claude-->
+    <link rel="apple-touch-icon" href="/icons/icon-192.png"> <!--#claude-->
+    <meta name="theme-color" content="#007aff"> <!--#claude-->
+
+    <!-- Styles --> <!--#claude-->
+    <link rel="stylesheet" href="/css/styles.css"> <!--#claude-->
+</head> <!--#claude-->
+<body> <!--#claude-->
+    <div class="container"> <!--#claude-->
+        <div class="completion-screen"> <!--#claude-->
+            <h1>Session Complete!</h1> <!--#claude-->
+            <p>Thank you for completing all video recordings.</p> <!--#claude-->
+
+            <div id="sessionSummary" class="session-summary"> <!--#claude-->
+                <!-- Populated by JavaScript --> <!--#claude-->
+            </div> <!--#claude-->
+
+            <div class="button-group">
+                <button id="viewDetailsBtn" class="btn btn-secondary">View Details</button>
+                <button id="startNewBtn" class="btn btn-warning">Start New Session</button>
+                <button id="homeBtn" class="btn btn-primary">Return Home</button>
+            </div>
+
+            <div id="detailsSection" class="details-section hidden"> <!--#claude-->
+                <h2>Recording Details</h2> <!--#claude-->
+                <div id="videoList" class="video-list"> <!--#claude-->
+                    <!-- Populated by JavaScript --> <!--#claude-->
+                </div> <!--#claude-->
+            </div> <!--#claude-->
+        </div> <!--#claude-->
+    </div> <!--#claude-->
+
+    <script src="/js/dexie.min.js"></script>
+    <script src="/js/storage.js"></script>
+    <script src="/js/state.js"></script>
+    <script src="/js/uploader.js"></script> <!--#claude - Video uploader module-->
+    <script src="/js/upload-manager.js"></script> <!--#claude - Background upload manager-->
+
+    <script>
+        (async function() {
+            try {
+                console.log('🎉 Loading session completion details...');
+
+                // #claude - Restore backendSessionId from localStorage so uploads can continue
+                const backendSessionId = localStorage.getItem('backendSessionId');
+                if (backendSessionId) {
+                    window.backendSessionId = backendSessionId;
+                    console.log(`✅ Restored backend session: ${backendSessionId}`);
+                } else {
+                    console.warn('⚠️ No backend session found in localStorage');
+                }
+
+                await SessionState.init();
+
+                const summary = SessionState.getSessionSummary();
+                console.log('Session summary:', summary);
+
+                const sessionSummary = document.getElementById('sessionSummary');
+                sessionSummary.innerHTML = `
+                    <div class="summary-item">
+                        <strong>Session ID:</strong> <span>${summary.sessionId}</span>
+                    </div>
+                    <div class="summary-item">
+                        <strong>Videos Recorded:</strong> <span>${summary.completedCount} of ${summary.totalVideos}</span>
+                    </div>
+                    <div class="summary-item">
+                        <strong>Status:</strong> <span class="status-complete">Complete ✓</span>
+                    </div>
+                `;
+
+                // Get video details from storage <!--#claude-->
+                const progress = await FacialStorage.getSessionProgress(); <!--#claude-->
+                console.log('Storage progress:', progress); <!--#claude-->
+
+                // Populate video list <!--#claude-->
+                const videoList = document.getElementById('videoList'); <!--#claude-->
+                if (progress.videos.length > 0) { <!--#claude-->
+                    videoList.innerHTML = progress.videos.map((video, index) => ` <!--#claude-->
+                        <div class="video-item"> <!--#claude-->
+                            <div class="video-number">Video ${index + 1}</div> <!--#claude-->
+                            <div class="video-info"> <!--#claude-->
+                                <div><strong>ID:</strong> ${video.promptId}</div> <!--#claude-->
+                                <div><strong>Size:</strong> ${(video.fileSize / 1024 / 1024).toFixed(2)} MB</div> <!--#claude-->
+                                <div><strong>Duration:</strong> ${video.duration.toFixed(1)}s</div> <!--#claude-->
+                                <div><strong>Codec:</strong> ${video.codec}</div> <!--#claude-->
+                            </div> <!--#claude-->
+                        </div> <!--#claude-->
+                    `).join(''); <!--#claude-->
+                } else { <!--#claude-->
+                    videoList.innerHTML = '<p>No video details available.</p>'; <!--#claude-->
+                } <!--#claude-->
+
+                // Event listeners - ADD THESE FIRST so buttons work even if upload hangs <!--#claude-->
+                document.getElementById('viewDetailsBtn').addEventListener('click', () => { <!--#claude-->
+                    const detailsSection = document.getElementById('detailsSection'); <!--#claude-->
+                    detailsSection.classList.toggle('hidden'); <!--#claude-->
+                }); <!--#claude-->
+
+                document.getElementById('startNewBtn').addEventListener('click', async () => { // #claude
+                    console.log('🔄 Starting new session...'); // #claude
+                    localStorage.clear(); // #claude
+                    await FacialStorage.clearAllVideos(); // #claude
+                    console.log('✅ Session data cleared'); // #claude
+                    window.location.href = '/recording.html'; // #claude
+                }); // #claude
+
+                document.getElementById('homeBtn').addEventListener('click', async () => { // #claude
+                    console.log('🧹 Cleaning up session data before returning home...'); // #claude
+                    localStorage.clear(); // #claude
+                    await FacialStorage.clearAllVideos(); // #claude
+                    console.log('✅ All session data cleared'); // #claude
+                    window.location.href = '/'; // #claude
+                }); // #claude
+
+                // Wait for background uploads to complete // #claude
+                if (typeof UploadManager !== 'undefined') { // #claude
+                    const uploadManager = UploadManager.resumeUploads(); // #claude
+                    const summary = uploadManager.getSummary(); // #claude
+                    console.log('📊 Upload queue state:', summary); // #claude
+
+                    if (summary.pending > 0 || summary.uploading > 0) { // #claude
+                        console.log(`⏳ Waiting for ${summary.pending + summary.uploading} uploads to complete...`); // #claude
+
+                        // Show waiting status // #claude
+                        const uploadStatusDiv = document.createElement('div'); // #claude
+                        uploadStatusDiv.className = 'summary-item'; // #claude
+                        uploadStatusDiv.innerHTML = '<strong>Upload Status:</strong> <span class="status-warning">⏳ Uploading...</span>'; // #claude
+                        sessionSummary.appendChild(uploadStatusDiv); // #claude
+
+                        // Wait with 30 second timeout (not 5 minutes - too long) // #claude
+                        const result = await uploadManager.waitForCompletion(30000); // #claude
+
+                        // Update status // #claude
+                        uploadStatusDiv.remove(); // #claude
+                        const finalStatusDiv = document.createElement('div'); // #claude
+                        finalStatusDiv.className = 'summary-item'; // #claude
+
+                        if (result.success) { // #claude
+                            console.log(`✅ All ${result.completed} uploads complete`); // #claude
+                            if (result.failed > 0) { // #claude
+                                finalStatusDiv.innerHTML = `<strong>Upload Status:</strong> <span class="status-warning">⚠️ ${result.failed} failed</span>`; // #claude
+                            } else { // #claude
+                                finalStatusDiv.innerHTML = '<strong>Upload Status:</strong> <span class="status-complete">✅ All uploaded</span>'; // #claude
+                            } // #claude
+                        } else { // #claude
+                            console.error('❌ Upload timeout or failure:', result); // #claude
+                            finalStatusDiv.innerHTML = `<strong>Upload Status:</strong> <span class="status-error">❌ Timeout (${result.pending} pending)</span>`; // #claude
+                        } // #claude
+                        sessionSummary.appendChild(finalStatusDiv); // #claude
+                    } else { // #claude
+                        console.log(`✅ All ${summary.completed} uploads already complete`); // #claude
+                    } // #claude
+                } else { // #claude
+                    console.log('✅ All uploads complete (blocking upload strategy)'); // #claude
+                } // #claude
+
+                // Auto-cleanup after 30 seconds #claude
+                const autoCleanupDelay = 30000; // #claude
+                console.log(`⏰ Auto-cleanup scheduled: ${autoCleanupDelay/1000}s`); // #claude
+                setTimeout(async () => { // #claude
+                    console.log('🧹 Auto-cleanup: Clearing all session data...'); // #claude
+                    localStorage.clear(); // #claude
+                    await FacialStorage.clearAllVideos(); // #claude
+                    console.log('✅ Auto-cleanup complete. Session data cleared.'); // #claude
+                }, autoCleanupDelay); // #claude
+
+            } catch (err) { <!--#claude-->
+                console.error('❌ Error loading completion details:', err); <!--#claude-->
+                document.getElementById('sessionSummary').innerHTML = ` <!--#claude-->
+                    <div class="error-message">Error loading session details.</div> <!--#claude-->
+                `; <!--#claude-->
+            } <!--#claude-->
+        })(); <!--#claude-->
+    </script> <!--#claude-->
+</body> <!--#claude-->
+</html> <!--#claude-->

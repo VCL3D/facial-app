@@ -1,0 +1,12 @@
+Flask==3.0.0
+flask-cors==4.0.0
+
+# Triton Inference Server client for AI quality checking
+tritonclient[http]==2.43.0
+
+# Image processing
+Pillow==10.2.0
+numpy==1.26.3
+
+# Stress testing
+aiohttp==3.9.1

@@ -1,0 +1,846 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="FaceData">
+    <title>Facial Data Collection</title>
+
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="/manifest.json">
+
+    <!-- iOS Icons -->
+    <link rel="apple-touch-icon" href="/icons/icon-192.png">
+
+    <!-- Theme Color -->
+    <meta name="theme-color" content="#007aff">
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: #fff;
+            padding: 20px;
+            padding-top: 40px;
+            padding-bottom: 10px;
+            min-height: 100vh;
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+        }
+
+        .container {
+            max-width: 600px;
+            width: 100%;
+        }
+
+        h1 {
+            font-size: 32px;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #aaa;
+            margin-bottom: 30px;
+            font-size: 16px;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border-radius: 16px;
+            padding: 30px;
+            margin-bottom: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .pwa-status {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 16px;
+            background: rgba(0, 122, 255, 0.1);
+            border-left: 4px solid #007aff;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .pwa-status.warning {
+            background: rgba(255, 149, 0, 0.1);
+            border-left-color: #ff9500;
+        }
+
+        .pwa-status-icon {
+            font-size: 24px;
+        }
+
+        .pwa-instructions {
+            background: rgba(255, 149, 0, 0.1);
+            padding: 20px;
+            border-radius: 12px;
+            margin-top: 20px;
+            border: 1px solid rgba(255, 149, 0, 0.3);
+        }
+
+        .pwa-instructions h3 {
+            color: #ff9500;
+            margin-bottom: 12px;
+            font-size: 18px;
+        }
+
+        .pwa-instructions ol {
+            margin-left: 20px;
+            line-height: 1.8;
+        }
+
+        .pwa-instructions li {
+            margin-bottom: 8px;
+        }
+
+        button {
+            width: 100%;
+            padding: 18px;
+            font-size: 18px;
+            font-weight: 600;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-bottom: 12px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #007aff 0%, #0051d5 100%);
+            color: white;
+            box-shadow: 0 4px 15px rgba(0, 122, 255, 0.3);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 122, 255, 0.4);
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.15);
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .info-item {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .info-label {
+            font-size: 12px;
+            color: #aaa;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 5px;
+        }
+
+        .info-value {
+            font-size: 18px;
+            font-weight: 600;
+            color: #007aff;
+        }
+
+        .footer {
+            text-align: center;
+            margin-top: 15px;
+            margin-bottom: 0;
+            color: #666;
+            font-size: 14px;
+        }
+
+        @media (max-width: 600px) {
+            h1 {
+                font-size: 24px;
+            }
+
+            .card {
+                padding: 20px;
+            }
+        }
+        /* V82: BLOCKING PWA Install Prompt */
+        .pwa-prompt {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.98);
+            z-index: 10000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .pwa-prompt.hidden {
+            display: none;
+        }
+
+        .pwa-prompt-content {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            border-radius: 16px;
+            padding: 35px;
+            max-width: 450px;
+            text-align: center;
+            border: 2px solid #007aff;
+            box-shadow: 0 8px 32px rgba(0, 122, 255, 0.3);
+        }
+
+        .pwa-prompt h2 {
+            margin-bottom: 20px;
+            color: #007aff;
+            font-size: 24px;
+        }
+
+        .pwa-prompt p {
+            margin-bottom: 15px;
+            line-height: 1.6;
+            color: #e5e5e5;
+        }
+
+        .pwa-prompt ul {
+            text-align: left;
+            margin: 20px 0;
+            line-height: 2;
+            color: #e5e5e5;
+        }
+
+        .pwa-prompt ul li {
+            margin-bottom: 10px;
+        }
+
+        .pwa-prompt h3 {
+            color: #007aff;
+            margin-top: 25px;
+            margin-bottom: 15px;
+            font-size: 18px;
+        }
+
+        .pwa-prompt ol {
+            text-align: left;
+            margin: 15px 0 15px 20px;
+            line-height: 1.9;
+            color: #e5e5e5;
+        }
+
+        .pwa-prompt ol li {
+            margin-bottom: 12px;
+        }
+
+        .pwa-prompt ol li strong {
+            color: #007aff;
+        }
+
+        .pwa-prompt button {
+            margin: 15px 5px 5px 5px;
+            padding: 14px 28px;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        #androidInstallBtn {
+            background: linear-gradient(135deg, #007aff 0%, #0051d5 100%);
+            color: white;
+            box-shadow: 0 4px 15px rgba(0, 122, 255, 0.4);
+        }
+
+        #androidInstallBtn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 122, 255, 0.5);
+        }
+
+        #androidDismissBtn {
+            background: rgba(255, 255, 255, 0.1);
+            color: #e5e5e5;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        #androidDismissBtn:hover {
+            background: rgba(255, 255, 255, 0.15);
+            transform: translateY(-2px);
+        }
+    </style>
+</head>
+<body>
+    <!-- V82: BLOCKING PWA Install Prompt -->
+    <div id="pwaInstallPrompt" class="pwa-prompt hidden">
+        <div class="pwa-prompt-content">
+            <!-- Header and common content (hidden when Firefox is detected) -->
+            <div id="standardPWAContent">
+                <h2>📱 Shortcut Required</h2>
+
+                <!-- Debug Info (visible on screen) -->
+                <div id="debugInfo" style="background: rgba(255,255,0,0.2); padding: 10px; border-radius: 8px; margin-bottom: 15px; font-size: 11px; text-align: left;">
+                    <strong>Debug Info:</strong><br>
+                    JS Version: <span id="debugJSVersion" style="color: #00ff00; font-weight: bold;">v93</span><br>
+                    Platform: <span id="debugPlatform">?</span><br>
+                    Touch Points: <span id="debugTouch">?</span><br>
+                    iOS Detected: <span id="debugIOS">?</span><br>
+                    <strong>User Agent:</strong><br>
+                    <span id="debugUA" style="color: #ffaa00; word-break: break-all;">?</span>
+                </div>
+
+                <!-- Common installation text -->
+                <p><strong>This web app must be opened through a shortcut on your device to function properly.</strong></p>
+            </div>
+
+            <!-- iOS Instructions -->
+            <div id="iosInstructions" class="hidden">
+                <h3>How to create shortcut (iOS):</h3>
+                <ol>
+                    <li><strong>If not using Safari:</strong> Open this page in the Safari browser app</li>
+                    <li>Tap the <strong>Share</strong> button (square with arrow) in the browser toolbar</li>
+                    <li>Scroll down and tap <strong>"Add to Home Screen"</strong></li>
+                    <li>Tap <strong>"Add"</strong> in the top right corner</li>
+                    <li>Open the app from your Home Screen to continue</li>
+                </ol>
+            </div>
+
+            <!-- Android Buttons -->
+            <button id="androidInstallBtn" class="hidden">Install Now</button>
+            <button id="androidDismissBtn" class="hidden">Continue in Browser</button>
+
+            <!-- Back Button -->
+            <button id="pwaBackBtn" onclick="closePWAPrompt()" style="background: rgba(255, 255, 255, 0.1); color: #e5e5e5; border: 1px solid rgba(255, 255, 255, 0.2); margin-top: 10px;">
+                ← Back to Main Page
+            </button>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- #claude v82: Exit Button removed from landing page per user request -->
+        <!-- <button onclick="exitApp()" style="position: fixed; top: 15px; right: 15px; background: rgba(255, 59, 48, 0.2); border: 1px solid rgba(255, 59, 48, 0.4); color: #ff3b30; padding: 8px 16px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; z-index: 1000; transition: all 0.2s;">
+            ✕ Exit
+        </button> -->
+
+        <h1>📹 Facial Data Collection</h1>
+        <p class="subtitle">Research Video Recording App</p>
+
+        <!-- V82: Platform Selection Buttons --> <!--#claude v82: Landing page redesign-->
+        <div class="card" id="platformSelection" style="margin-bottom: 30px;">
+            <h2 style="margin-bottom: 20px; font-size: 24px;">Choose Your Recording Method</h2>
+
+            <div style="display: flex; flex-direction: column; gap: 15px; max-width: 500px; margin: 0 auto;">
+                <!-- Apple PWA Button -->
+                <button id="appleButton" onclick="goToApplePWA()" style="background: linear-gradient(135deg, #007aff, #0051d5); color: white; border: none; padding: 20px; border-radius: 12px; font-size: 18px; font-weight: 600; cursor: pointer; text-align: left; box-shadow: 0 4px 15px rgba(0, 122, 255, 0.3); transition: all 0.2s;">
+                    <div style="display: flex; align-items: center; gap: 15px;">
+                        <span style="font-size: 32px;">🍎</span>
+                        <div>
+                            <div style="font-size: 20px;">Recording App (Apple)</div>
+                            <div style="font-size: 14px; opacity: 0.9; font-weight: 400; margin-top: 5px;">Install PWA for iOS/iPad</div>
+                        </div>
+                    </div>
+                </button>
+
+                <!-- Android Browser Button -->
+                <button id="androidButton" onclick="goToAndroidBrowser()" style="background: linear-gradient(135deg, #34c759, #28a745); color: white; border: none; padding: 20px; border-radius: 12px; font-size: 18px; font-weight: 600; cursor: pointer; text-align: left; box-shadow: 0 4px 15px rgba(52, 199, 89, 0.3); transition: all 0.2s;">
+                    <div style="display: flex; align-items: center; gap: 15px;">
+                        <span style="font-size: 32px;">🤖</span>
+                        <div>
+                            <div style="font-size: 20px;">In-Browser Recording (Android)</div>
+                            <div style="font-size: 14px; opacity: 0.9; font-weight: 400; margin-top: 5px;">Start recording immediately in browser</div>
+                        </div>
+                    </div>
+                </button>
+
+                <!-- Camera Test Button -->
+                <button onclick="goToCameraTest()" style="background: linear-gradient(135deg, #5856d6, #4a47a3); color: white; border: none; padding: 20px; border-radius: 12px; font-size: 18px; font-weight: 600; cursor: pointer; text-align: left; box-shadow: 0 4px 15px rgba(88, 86, 214, 0.3); transition: all 0.2s;">
+                    <div style="display: flex; align-items: center; gap: 15px;">
+                        <span style="font-size: 32px;">📷</span>
+                        <div>
+                            <div style="font-size: 20px;">Camera Test</div>
+                            <div style="font-size: 14px; opacity: 0.9; font-weight: 400; margin-top: 5px;">Test your camera before recording</div>
+                        </div>
+                    </div>
+                </button>
+            </div>
+        </div> <!--#claude v82-->
+
+        <div class="card" id="mainContent" style="display: none;"> <!--#claude v82: Hidden by default, shown when Apple option selected-->
+            <div id="pwaStatus" class="pwa-status">
+                <span class="pwa-status-icon">⚙️</span>
+                <div>
+                    <strong>Checking PWA status...</strong>
+                </div>
+            </div>
+
+            <div id="pwaInstructions" style="display: none;" class="pwa-instructions">
+                <h3>⚠️ Installation Required for iOS</h3>
+                <p><strong>To ensure data persistence and prevent loss:</strong></p>
+                <ol>
+                    <li>Tap the <strong>Share</strong> button (square with arrow ↑)</li>
+                    <li>Scroll down and tap <strong>"Add to Home Screen"</strong></li>
+                    <li>Tap <strong>"Add"</strong> in the top right corner</li>
+                    <li>Open the app from your Home Screen</li>
+                </ol>
+                <p style="margin-top: 12px; font-size: 14px; color: #ff9500;">
+                    <strong>Why?</strong> iOS Safari deletes data after 7 days. Installing as an app prevents this.
+                </p>
+            </div>
+
+            <!--#claude v48: Participant name input-->
+            <div style="margin-top: 30px;">
+                <label for="participantName" style="display: block; font-weight: 600; margin-bottom: 8px; color: #e5e5e5;">
+                    Participant Name:
+                </label>
+                <input type="text"
+                       id="participantName"
+                       placeholder="Enter your name"
+                       style="width: 100%; max-width: 400px; padding: 12px 16px; font-size: 16px; border: 2px solid rgba(255,255,255,0.2); border-radius: 12px; background: rgba(255,255,255,0.05); color: #ffffff; margin-bottom: 20px;"
+                       value="">
+            </div>
+
+            <div style="margin-top: 10px;"> <!--#claude-->
+                <button id="startButton" class="btn-primary" onclick="startSession()"> <!--#claude v82: Added ID for PWA blocking-->
+                    Start Recording Session <!--#claude-->
+                </button> <!--#claude-->
+                <button class="btn-secondary" onclick="testCamera()"> <!--#claude-->
+                    Test Camera <!--#claude-->
+                </button> <!--#claude-->
+                <button class="btn-secondary" onclick="clearAllData()" style="background: rgba(255, 59, 48, 0.2); border-color: rgba(255, 59, 48, 0.4); color: #ff3b30;"> <!--#claude v22-->
+                    🗑️ Clear All Data & Reset <!--#claude v22-->
+                </button> <!--#claude v22-->
+            </div> <!--#claude-->
+        </div>
+
+        <div class="footer">
+            <p>Version 1.4.0 | Built with WebRTC</p>
+        </div>
+    </div>
+
+    <script>
+        // #claude v48: Restore participant name from localStorage on page load
+        window.addEventListener('DOMContentLoaded', () => {
+            const savedName = localStorage.getItem('participantName');
+            if (savedName) {
+                document.getElementById('participantName').value = savedName;
+            }
+
+            // Check if running as PWA
+            const isPWA = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+
+            if (isPWA) {
+                // Running as PWA - show the intermediate page with recording/test buttons
+                document.getElementById('platformSelection').style.display = 'none';
+                document.getElementById('mainContent').style.display = 'block';
+            } else {
+                // Running in browser - show platform selection
+                // Detect Apple devices and disable Android button
+                const isAppleDevice = /iPhone|iPad|iPod|Macintosh|Mac OS X/.test(navigator.userAgent);
+                if (isAppleDevice) {
+                    const androidBtn = document.getElementById('androidButton');
+                    if (androidBtn) {
+                        androidBtn.disabled = true;
+                        androidBtn.style.opacity = '0.4';
+                        androidBtn.style.cursor = 'not-allowed';
+                        androidBtn.style.filter = 'grayscale(50%)';
+                        androidBtn.onclick = null; // Remove click handler
+                    }
+                }
+
+                // Detect Android devices and disable Apple button
+                const isAndroid = /Android/i.test(navigator.userAgent);
+                if (isAndroid) {
+                    const appleBtn = document.getElementById('appleButton');
+                    if (appleBtn) {
+                        appleBtn.disabled = true;
+                        appleBtn.style.opacity = '0.4';
+                        appleBtn.style.cursor = 'not-allowed';
+                        appleBtn.style.filter = 'grayscale(50%)';
+                        appleBtn.onclick = null; // Remove click handler
+                    }
+                }
+            }
+        });
+
+        // PWA Detection
+        function isStandalonePWA() {
+            return window.matchMedia('(display-mode: standalone)').matches ||
+                   window.navigator.standalone === true;
+        }
+
+        // Get browser info
+        function getBrowserInfo() {
+            const ua = navigator.userAgent;
+            if (ua.indexOf('Safari') !== -1 && ua.indexOf('Chrome') === -1) {
+                const version = ua.match(/Version\/(\d+\.\d+)/);
+                return `Safari ${version ? version[1] : '?'}`;
+            } else if (ua.indexOf('Chrome') !== -1) {
+                return 'Chrome';
+            } else if (ua.indexOf('Firefox') !== -1) {
+                return 'Firefox';
+            }
+            return 'Other';
+        }
+
+        // Initialize
+        window.addEventListener('DOMContentLoaded', async () => {
+            const isPWA = isStandalonePWA();
+            const browser = getBrowserInfo();
+            const ua = navigator.userAgent;
+
+            // Update status
+            const statusEl = document.getElementById('pwaStatus');
+            const instructionsEl = document.getElementById('pwaInstructions');
+
+            if (isPWA) {
+                statusEl.className = 'pwa-status';
+                statusEl.innerHTML = `
+                    <span class="pwa-status-icon">✅</span>
+                    <div>
+                        <strong>Running as PWA</strong>
+                        <div style="font-size: 14px; color: #aaa; margin-top: 4px;">
+                            Data will be preserved, storage quota optimized
+                        </div>
+                    </div>
+                `;
+            } else {
+                statusEl.className = 'pwa-status warning';
+                statusEl.innerHTML = `
+                    <span class="pwa-status-icon">⚠️</span>
+                    <div>
+                        <strong>Not installed as PWA</strong>
+                        <div style="font-size: 14px; color: #ff9500; margin-top: 4px;">
+                            For iOS: Installation required to prevent data loss
+                        </div>
+                    </div>
+                `;
+
+                // Show instructions on iOS Safari
+                if (browser.includes('Safari') && /iPhone|iPad|iPod/.test(ua)) {
+                    instructionsEl.style.display = 'block';
+                }
+            }
+
+            // Register service worker with version parameter to bust cache
+            if ('serviceWorker' in navigator) {
+                try {
+                    const registration = await navigator.serviceWorker.register('/service-worker.js?v=93');
+                    console.log('ServiceWorker registered:', registration.scope);
+
+                    // Force update if there's a waiting worker
+                    if (registration.waiting) {
+                        registration.waiting.postMessage({ action: 'skipWaiting' });
+                        window.location.reload();
+                    }
+
+                    // Listen for updates
+                    registration.addEventListener('updatefound', () => {
+                        const newWorker = registration.installing;
+                        newWorker.addEventListener('statechange', () => {
+                            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                console.log('New service worker available, reloading...');
+                                newWorker.postMessage({ action: 'skipWaiting' });
+                                window.location.reload();
+                            }
+                        });
+                    });
+                } catch (error) {
+                    console.error('ServiceWorker registration failed:', error);
+                }
+            }
+
+            // Check storage quota
+            if (navigator.storage && navigator.storage.estimate) {
+                const estimate = await navigator.storage.estimate();
+                const availableMB = ((estimate.quota - estimate.usage) / 1024 / 1024).toFixed(0);
+                console.log(`Storage available: ${availableMB} MB`);
+
+                if (availableMB < 250) {
+                    alert(`Warning: Low storage available (${availableMB} MB). Please free up space for best experience.`);
+                }
+            }
+        });
+
+        // #claude v22: Clear all data and reset everything
+        async function clearAllData() {
+            if (!confirm('⚠️ This will delete ALL recordings AND camera tests from the server, clear cache, and reset the app. Continue?')) {
+                return;
+            }
+
+            const statusMsg = document.createElement('div');
+            statusMsg.style.cssText = 'position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.9); color: white; padding: 30px; border-radius: 16px; z-index: 10000; text-align: center; min-width: 250px;';
+            statusMsg.innerHTML = '<div style="font-size: 24px; margin-bottom: 10px;">🗑️</div><div>Clearing all data...</div>';
+            document.body.appendChild(statusMsg);
+
+            try {
+                // Step 0: Delete server-side data (recordings + camera tests)
+                statusMsg.innerHTML = '<div style="font-size: 24px; margin-bottom: 10px;">🗑️</div><div>Deleting server data...</div>';
+                try {
+                    const response = await fetch('/api/data/clear-all', {
+                        method: 'POST'
+                    });
+                    if (response.ok) {
+                        const data = await response.json();
+                        console.log(`✅ Deleted ${data.deleted.recordings} recordings and ${data.deleted.camera_tests} camera tests from server`);
+                    } else {
+                        console.warn('⚠️ Server data deletion failed, continuing with client cleanup...');
+                    }
+                } catch (serverErr) {
+                    console.warn('⚠️ Could not reach server, continuing with client cleanup...', serverErr);
+                }
+                // Step 1: Unregister service workers
+                if ('serviceWorker' in navigator) {
+                    const registrations = await navigator.serviceWorker.getRegistrations();
+                    for (let registration of registrations) {
+                        await registration.unregister();
+                    }
+                }
+
+                // Step 2: Clear all caches
+                if ('caches' in window) {
+                    const cacheNames = await caches.keys();
+                    for (let cacheName of cacheNames) {
+                        await caches.delete(cacheName);
+                    }
+                }
+
+                // Step 3: Clear localStorage
+                localStorage.clear();
+
+                // Step 4: Delete IndexedDB
+                const dbs = await indexedDB.databases();
+                for (let db of dbs) {
+                    await new Promise((resolve) => {
+                        const deleteRequest = indexedDB.deleteDatabase(db.name);
+                        deleteRequest.onsuccess = () => resolve();
+                        deleteRequest.onerror = () => resolve(); // Continue anyway
+                        deleteRequest.onblocked = () => resolve(); // Continue anyway
+                    });
+                }
+
+                statusMsg.innerHTML = '<div style="font-size: 24px; margin-bottom: 10px;">✅</div><div>All data cleared!<br>Reloading...</div>';
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1000);
+
+            } catch (err) {
+                statusMsg.innerHTML = '<div style="font-size: 24px; margin-bottom: 10px;">❌</div><div>Error: ' + err.message + '</div>';
+                console.error('Clear data error:', err);
+            }
+        }
+
+        // Close PWA prompt and return to main page
+        function closePWAPrompt() {
+            const pwaPrompt = document.getElementById('pwaInstallPrompt');
+            const platformSelection = document.getElementById('platformSelection');
+            const mainContent = document.getElementById('mainContent');
+
+            // Hide the prompt
+            pwaPrompt.classList.add('hidden');
+
+            // Show platform selection, hide main content
+            platformSelection.style.display = 'block';
+            mainContent.style.display = 'none';
+        }
+
+        // #claude v82: Platform selection functions
+        function goToApplePWA() {
+            // Hide platform selection, show main PWA content
+            document.getElementById('platformSelection').style.display = 'none';
+            document.getElementById('mainContent').style.display = 'block';
+
+            // Scroll to top smoothly
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+
+            // #claude v82: Trigger PWA detection ONLY when Apple button is clicked
+            setTimeout(() => {
+                const isPWA = initPWADetection();
+
+                // Block start button if not PWA
+                if (!isPWA) {
+                    const startBtn = document.querySelector('.btn-primary');
+                    if (startBtn) {
+                        startBtn.setAttribute('disabled', 'true');
+                        startBtn.style.opacity = '0.5';
+                        startBtn.style.cursor = 'not-allowed';
+                        startBtn.title = 'Please install the app first';
+                    }
+                    console.warn('⚠️ V82: Start button blocked - PWA installation required');
+                } else {
+                    console.log('✅ V82: PWA mode active - full access granted');
+                }
+            }, 100); // Small delay to allow DOM to update
+        }
+
+        function goToAndroidBrowser() {
+            // Save a flag to bypass PWA check, then go directly to recording
+            localStorage.setItem('bypassPWACheck', 'true');
+            window.location.href = '/recording.html';
+        }
+
+        function goToCameraTest() {
+            // Save participant name prompt, then go to camera test
+            const name = prompt('(Temporary) Enter your name for camera test:');
+            if (name) {
+                localStorage.setItem('participantName', name.trim());
+                window.location.href = '/test-camera.html'; // #claude v82: Fixed filename (was camera-test.html)
+            }
+        }
+
+        // #claude v82: Exit app function - close PWA or show confirmation
+        function exitApp() {
+            const isPWA = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+
+            if (isPWA) {
+                // Running as PWA - confirm before closing
+                if (confirm('Exit the app? Any unsaved progress will be lost.')) {
+                    // Try to close window (works in some PWA contexts)
+                    window.close();
+
+                    // If window.close() doesn't work, show message
+                    setTimeout(() => {
+                        alert('Please close the app from your device\'s app switcher.');
+                    }, 100);
+                }
+            } else {
+                // Running in browser - just close tab or go back
+                if (confirm('Exit the app?')) {
+                    window.close();
+                    // If window.close() fails (most browsers block it), try history back
+                    setTimeout(() => {
+                        if (window.history.length > 1) {
+                            window.history.back();
+                        } else {
+                            alert('Please close this browser tab.');
+                        }
+                    }, 100);
+                }
+            }
+        }
+
+        // #claude v69: Test camera function - validates and saves name before navigating
+        function testCamera() {
+            const nameInput = document.getElementById('participantName');
+            const participantName = nameInput.value.trim();
+
+            if (!participantName) {
+                alert('⚠️ Please enter your name before testing the camera.');
+                nameInput.focus();
+                return;
+            }
+
+            // Save to localStorage for use in camera test
+            localStorage.setItem('participantName', participantName);
+            console.log('✅ V69: Participant name saved before camera test:', participantName);
+
+            // Navigate to camera test page
+            window.location.href = '/test-camera.html';
+        }
+
+        async function startSession() {
+            // #claude v48: Validate and save participant name
+            const nameInput = document.getElementById('participantName');
+            const participantName = nameInput.value.trim();
+
+            if (!participantName) {
+                alert('⚠️ Please enter your name before starting the session.');
+                nameInput.focus();
+                return;
+            }
+
+            // Save to localStorage for use during session
+            localStorage.setItem('participantName', participantName);
+            console.log('✅ Participant name saved:', participantName);
+
+            try {
+                const dbRequest = indexedDB.open('FacialRecordings', 1);
+                dbRequest.onsuccess = (e) => {
+                    const db = e.target.result;
+
+                    if (!db.objectStoreNames.contains('videos')) {
+                        window.location.href = '/recording.html';
+                        return;
+                    }
+
+                    const tx = db.transaction(['videos'], 'readonly');
+                    const store = tx.objectStore('videos');
+                    const countRequest = store.count();
+
+                    countRequest.onsuccess = () => {
+                        const videoCount = countRequest.result;
+
+                        if (videoCount >= 3) {
+                            if (confirm('You have a completed session. Start a new session? This will clear all previous recordings.')) {
+                                localStorage.clear();
+                                const deleteRequest = indexedDB.deleteDatabase('FacialRecordings');
+                                deleteRequest.onsuccess = () => {
+                                    console.log('Previous session cleared');
+                                    window.location.href = '/recording.html';
+                                };
+                                deleteRequest.onerror = () => {
+                                    alert('Failed to clear previous session. Please try again.');
+                                };
+                            }
+                        } else {
+                            window.location.href = '/recording.html';
+                        }
+                    };
+                };
+
+                dbRequest.onerror = () => {
+                    window.location.href = '/recording.html';
+                };
+            } catch (err) {
+                console.error('Error checking session:', err);
+                window.location.href = '/recording.html';
+            }
+        }
+    </script>
+
+    <!-- V92: PWA Detection Script with cache-busting -->
+    <script src="/js/pwa-detector.js?v=93"></script>
+    <script>
+        // #claude v82: DISABLED automatic PWA check - now triggered only when user clicks "Recording App (Apple)"
+        // window.addEventListener('DOMContentLoaded', () => {
+        //     const isPWA = initPWADetection();
+        //
+        //     // Block start button if not PWA
+        //     if (!isPWA) {
+        //         const startBtn = document.querySelector('.btn-primary');
+        //         if (startBtn) {
+        //             startBtn.setAttribute('disabled', 'true');
+        //             startBtn.style.opacity = '0.5';
+        //             startBtn.style.cursor = 'not-allowed';
+        //             startBtn.title = 'Please install the app first';
+        //         }
+        //         console.warn('⚠️ V82: Start button blocked - PWA installation required');
+        //     } else {
+        //         console.log('✅ V82: PWA mode active - full access granted');
+        //     }
+        // });
+    </script>
+</body>
+</html>

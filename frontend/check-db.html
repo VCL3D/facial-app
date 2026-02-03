@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html><head><title>DB Check</title></head><body>
+<h1>Database Check</h1>
+<div id="result"></div>
+<script>
+async function checkDB() {
+    const result = document.getElementById('result');
+    const req = indexedDB.open('FacialRecordings', 1);
+    
+    req.onsuccess = (e) => {
+        const db = e.target.result;
+        const tx = db.transaction(['chunks'], 'readonly');
+        const store = tx.objectStore('chunks');
+        
+        const countReq = store.count();
+        countReq.onsuccess = () => {
+            result.innerHTML = `<h2>Total chunks in database: ${countReq.result}</h2>`;
+            result.innerHTML += `<p>This explains why video 3 is slow!</p>`;
+            result.innerHTML += `<a href="/unregister-sw.html">Clear Everything</a>`;
+        };
+        
+        tx.oncomplete = () => db.close();
+    };
+}
+checkDB();
+</script>
+</body></html>

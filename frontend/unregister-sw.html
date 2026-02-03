@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Unregister Service Worker</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: #fff;
+            padding: 20px;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .container {
+            max-width: 600px;
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border-radius: 16px;
+            padding: 30px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            text-align: center;
+        }
+        h1 { margin-bottom: 20px; }
+        #status {
+            margin: 20px 0;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            font-size: 14px;
+        }
+        .btn {
+            background: #007aff;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            margin: 10px;
+        }
+        .btn:hover { background: #0056b3; }
+        .success { color: #4CAF50; }
+        .error { color: #f44336; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 Service Worker Reset</h1>
+        <p>This will unregister the service worker and clear all caches.</p>
+        <div id="status">Click the button below to start...</div>
+        <button class="btn" onclick="unregisterAll()">Unregister & Clear Caches</button>
+        <button class="btn" onclick="window.location.href='/'" style="background: #666;">Back to Home</button>
+    </div>
+
+    <script>
+        async function unregisterAll() {
+            const statusEl = document.getElementById('status');
+            statusEl.innerHTML = 'Working...';
+
+            try {
+                // Step 1: Unregister all service workers
+                if ('serviceWorker' in navigator) {
+                    const registrations = await navigator.serviceWorker.getRegistrations();
+                    statusEl.innerHTML = `Found ${registrations.length} service worker(s)...<br>`;
+
+                    for (let registration of registrations) {
+                        await registration.unregister();
+                        statusEl.innerHTML += `✅ Unregistered service worker<br>`;
+                    }
+                } else {
+                    statusEl.innerHTML += 'No service worker support<br>';
+                }
+
+                // Step 2: Clear all caches
+                if ('caches' in window) {
+                    const cacheNames = await caches.keys();
+                    statusEl.innerHTML += `Found ${cacheNames.length} cache(s)...<br>`;
+
+                    for (let cacheName of cacheNames) {
+                        await caches.delete(cacheName);
+                        statusEl.innerHTML += `✅ Deleted cache: ${cacheName}<br>`;
+                    }
+                } else {
+                    statusEl.innerHTML += 'No cache API support<br>';
+                }
+
+                // Step 3: Clear localStorage
+                statusEl.innerHTML += 'Clearing localStorage...<br>';
+                localStorage.clear();
+                statusEl.innerHTML += '✅ localStorage cleared<br>';
+
+                // Step 4: Clear IndexedDB
+                try {
+                    const dbs = await indexedDB.databases();
+                    statusEl.innerHTML += `Found ${dbs.length} database(s)...<br>`;
+
+                    for (let db of dbs) {
+                        await new Promise((resolve, reject) => {
+                            const deleteRequest = indexedDB.deleteDatabase(db.name);
+                            deleteRequest.onsuccess = () => {
+                                statusEl.innerHTML += `✅ Deleted database: ${db.name}<br>`;
+                                resolve();
+                            };
+                            deleteRequest.onerror = () => {
+                                statusEl.innerHTML += `❌ Failed to delete database: ${db.name}<br>`;
+                                resolve(); // Continue anyway
+                            };
+                            deleteRequest.onblocked = () => {
+                                statusEl.innerHTML += `⚠️ Database deletion blocked: ${db.name}<br>`;
+                                resolve(); // Continue anyway
+                            };
+                        });
+                    }
+                } catch (error) {
+                    statusEl.innerHTML += `⚠️ IndexedDB cleanup: ${error.message}<br>`;
+                }
+
+                // Success!
+                statusEl.innerHTML += '<br><span class="success">✅ All done! Everything cleared.</span><br><br>';
+                statusEl.innerHTML += 'Click "Back to Home" to start fresh.';
+
+            } catch (error) {
+                statusEl.innerHTML += `<br><span class="error">❌ Error: ${error.message}</span>`;
+                console.error('Unregister error:', error);
+            }
+        }
+
+        // Auto-run on load if query parameter is set
+        if (window.location.search.includes('auto=true')) {
+            window.addEventListener('load', () => {
+                unregisterAll();
+            });
+        }
+    </script>
+</body>
+</html>

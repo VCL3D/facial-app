@@ -1,0 +1,3 @@
+# Exclude log files from Claude Code tracking
+data/
+*.log

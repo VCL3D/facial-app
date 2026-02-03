@@ -1,0 +1,427 @@
+#!/usr/bin/env python3
+"""
+Flask backend for Facial Data Collection app
+Handles session creation, chunked video uploads, and metadata storage
+"""
+
+from flask import Flask, request, jsonify, send_from_directory
+from flask_cors import CORS
+import os
+import json
+import uuid
+from datetime import datetime
+from pathlib import Path
+import shutil
+import base64
+import io
+import numpy as np
+from PIL import Image
+import tritonclient.http as httpclient
+
+app = Flask(__name__)
+CORS(app)  # Enable CORS for frontend communication
+
+# Configuration
+BASE_DATA_DIR = Path(__file__).parent.parent / 'data' / 'facial_recordings'
+BASE_DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+# Triton Inference Server configuration
+TRITON_URL = os.environ.get('TRITON_URL', 'localhost:8003')
+TRITON_MODEL_NAME = 'efficient_fiqa'
+TRITON_MODEL_VERSION = '1'
+
+# ImageNet normalization stats (used by Efficient-FIQA)
+IMAGENET_MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32)
+IMAGENET_STD = np.array([0.229, 0.224, 0.225], dtype=np.float32)
+
+# ============================================================================
+# Helper Functions
+# ============================================================================
+
+def get_session_dir(session_id):
+    """Get the directory path for a session"""
+    return BASE_DATA_DIR / session_id
+
+def get_chunks_dir(session_id, video_id):
+    """Get the directory for temporary chunks"""
+    return get_session_dir(session_id) / f"{video_id}_chunks"
+
+def preprocess_image_for_quality_check(image_data):
+    """
+    Preprocess image for Efficient-FIQA model
+
+    Args:
+        image_data: Base64-encoded image string or PIL Image
+
+    Returns:
+        numpy.ndarray: Preprocessed image tensor (1, 3, 352, 352)
+    """
+    # Decode base64 if needed
+    if isinstance(image_data, str):
+        # Remove data URL prefix if present (data:image/png;base64,...)
+        if 'base64,' in image_data:
+            image_data = image_data.split('base64,')[1]
+        image_bytes = base64.b64decode(image_data)
+        image = Image.open(io.BytesIO(image_bytes))
+    else:
+        image = image_data
+
+    # Convert to RGB if needed
+    if image.mode != 'RGB':
+        image = image.convert('RGB')
+
+    # Resize to 352x352 (Efficient-FIQA input size)
+    image = image.resize((352, 352), Image.BILINEAR)
+
+    # Convert to numpy array and normalize to [0, 1]
+    img_array = np.array(image, dtype=np.float32) / 255.0
+
+    # Apply ImageNet normalization
+    img_array = (img_array - IMAGENET_MEAN) / IMAGENET_STD
+
+    # Convert from HWC to CHW format (channels first)
+    img_array = np.transpose(img_array, (2, 0, 1))
+
+    # Add batch dimension
+    img_array = np.expand_dims(img_array, axis=0)
+
+    return img_array
+
+# ============================================================================
+# API Endpoints
+# ============================================================================
+
+@app.route('/api/session/create', methods=['POST'])
+def create_session():
+    """
+    Create a new recording session
+
+    Request body (optional):
+        {
+            "participant_id": "optional_participant_identifier"
+        }
+
+    Response:
+        {
+            "session_id": "uuid-generated-session-id",
+            "created_at": "2026-01-27T15:30:00",
+            "status": "created"
+        }
+    """
+    try:
+        data = request.get_json() or {}
+        session_id = str(uuid.uuid4())
+
+        # Create session directory
+        session_dir = get_session_dir(session_id)
+        session_dir.mkdir(parents=True, exist_ok=True)
+
+        # Create session metadata file
+        session_metadata = {
+            'session_id': session_id,
+            'participant_id': data.get('participant_id'),
+            'created_at': datetime.now().isoformat(),
+            'status': 'created',
+            'videos': []
+        }
+
+        with open(session_dir / 'session.json', 'w') as f:
+            json.dump(session_metadata, f, indent=2)
+
+        return jsonify({
+            'session_id': session_id,
+            'created_at': session_metadata['created_at'],
+            'status': 'created'
+        }), 201
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/upload/chunk', methods=['POST'])
+def upload_chunk():
+    """
+    Upload a single chunk of a video
+
+    Form data:
+        - session_id: Session identifier
+        - video_id: Video identifier (unique per video)
+        - chunk_index: Current chunk index (0-based)
+        - total_chunks: Total number of chunks
+        - chunk: File data
+
+    Response:
+        {
+            "status": "chunk_received",
+            "chunk_index": 0,
+            "total_chunks": 10
+        }
+
+        OR if last chunk:
+        {
+            "status": "video_complete",
+            "video_id": "...",
+            "file_path": "..."
+        }
+    """
+    try:
+        session_id = request.form.get('session_id')
+        video_id = request.form.get('video_id')
+        chunk_index = int(request.form.get('chunk_index'))
+        total_chunks = int(request.form.get('total_chunks'))
+        chunk_file = request.files.get('chunk')
+
+        if not all([session_id, video_id, chunk_file]):
+            return jsonify({'error': 'Missing required fields'}), 400
+
+        # Verify session exists
+        session_dir = get_session_dir(session_id)
+        if not session_dir.exists():
+            return jsonify({'error': 'Session not found'}), 404
+
+        # Create chunks directory
+        chunks_dir = get_chunks_dir(session_id, video_id)
+        chunks_dir.mkdir(parents=True, exist_ok=True)
+
+        # Save chunk
+        chunk_path = chunks_dir / f"chunk_{chunk_index:04d}"
+        chunk_file.save(str(chunk_path))
+
+        # Check if all chunks received
+        received_chunks = len(list(chunks_dir.glob('chunk_*')))
+
+        if received_chunks == total_chunks:
+            # Reassemble video
+            video_path = session_dir / f"{video_id}.webm"
+
+            with open(video_path, 'wb') as outfile:
+                for i in range(total_chunks):
+                    chunk_path = chunks_dir / f"chunk_{i:04d}"
+                    with open(chunk_path, 'rb') as chunk:
+                        outfile.write(chunk.read())
+
+            # Clean up chunks
+            shutil.rmtree(chunks_dir)
+
+            return jsonify({
+                'status': 'video_complete',
+                'video_id': video_id,
+                'file_path': str(video_path.relative_to(BASE_DATA_DIR))
+            }), 200
+        else:
+            return jsonify({
+                'status': 'chunk_received',
+                'chunk_index': chunk_index,
+                'total_chunks': total_chunks,
+                'received': received_chunks
+            }), 200
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/upload/metadata', methods=['POST'])
+def upload_metadata():
+    """
+    Store metadata for a video
+
+    Request body:
+        {
+            "session_id": "...",
+            "video_id": "...",
+            "prompt_id": "facial_expressions",
+            "duration": 45.2,
+            "file_size": 15728640,
+            "codec": "vp9",
+            "resolution": "1280x960",
+            "frame_rate": 30,
+            "camera_model": "HD Webcam",
+            "browser": "Chrome 144.0",
+            "timestamp": "2026-01-27T15:30:00"
+        }
+
+    Response:
+        {
+            "status": "metadata_saved",
+            "video_id": "..."
+        }
+    """
+    try:
+        data = request.get_json()
+        session_id = data.get('session_id')
+        video_id = data.get('video_id')
+
+        if not session_id or not video_id:
+            return jsonify({'error': 'Missing session_id or video_id'}), 400
+
+        session_dir = get_session_dir(session_id)
+        if not session_dir.exists():
+            return jsonify({'error': 'Session not found'}), 404
+
+        # Save video metadata
+        metadata_path = session_dir / f"{video_id}.metadata.json"
+        with open(metadata_path, 'w') as f:
+            json.dump(data, f, indent=2)
+
+        # Update session metadata
+        session_file = session_dir / 'session.json'
+        with open(session_file, 'r') as f:
+            session_data = json.load(f)
+
+        session_data['videos'].append({
+            'video_id': video_id,
+            'prompt_id': data.get('prompt_id'),
+            'uploaded_at': datetime.now().isoformat()
+        })
+
+        with open(session_file, 'w') as f:
+            json.dump(session_data, f, indent=2)
+
+        return jsonify({
+            'status': 'metadata_saved',
+            'video_id': video_id
+        }), 200
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/session/<session_id>', methods=['GET'])
+def get_session(session_id):
+    """
+    Get session information
+
+    Response:
+        {
+            "session_id": "...",
+            "created_at": "...",
+            "status": "...",
+            "videos": [...]
+        }
+    """
+    try:
+        session_dir = get_session_dir(session_id)
+        session_file = session_dir / 'session.json'
+
+        if not session_file.exists():
+            return jsonify({'error': 'Session not found'}), 404
+
+        with open(session_file, 'r') as f:
+            session_data = json.load(f)
+
+        return jsonify(session_data), 200
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/quality/check', methods=['POST'])
+def check_quality():
+    """
+    Check face image quality using AI model (Efficient-FIQA)
+
+    Request body:
+        {
+            "image": "base64-encoded image data (data:image/png;base64,...)"
+        }
+
+    Response:
+        {
+            "quality_score": 0.85,  # 0-1, higher = better
+            "quality_level": "good",  # poor, acceptable, good
+            "threshold_met": true,   # True if >= 0.5
+            "inference_time_ms": 4.2
+        }
+    """
+    try:
+        import time
+        start_time = time.time()
+
+        data = request.get_json()
+        if not data or 'image' not in data:
+            return jsonify({'error': 'Missing image data'}), 400
+
+        # Preprocess image
+        try:
+            img_tensor = preprocess_image_for_quality_check(data['image'])
+        except Exception as e:
+            return jsonify({'error': f'Image preprocessing failed: {str(e)}'}), 400
+
+        # Create Triton client
+        try:
+            triton_client = httpclient.InferenceServerClient(
+                url=TRITON_URL,
+                verbose=False
+            )
+
+            # Check if Triton is ready
+            if not triton_client.is_server_ready():
+                return jsonify({'error': 'Triton server not ready'}), 503
+
+            # Check if model is ready
+            if not triton_client.is_model_ready(TRITON_MODEL_NAME, TRITON_MODEL_VERSION):
+                return jsonify({'error': f'Model {TRITON_MODEL_NAME} not ready'}), 503
+
+        except Exception as e:
+            return jsonify({'error': f'Triton connection failed: {str(e)}'}), 503
+
+        # Prepare input tensor
+        input_tensor = httpclient.InferInput('input', img_tensor.shape, 'FP32')
+        input_tensor.set_data_from_numpy(img_tensor)
+
+        # Prepare output
+        output = httpclient.InferRequestedOutput('output')
+
+        # Run inference
+        try:
+            response = triton_client.infer(
+                model_name=TRITON_MODEL_NAME,
+                model_version=TRITON_MODEL_VERSION,
+                inputs=[input_tensor],
+                outputs=[output]
+            )
+
+            # Get quality score
+            quality_score = float(response.as_numpy('output')[0][0])
+
+            # Determine quality level
+            if quality_score >= 0.7:
+                quality_level = 'good'
+            elif quality_score >= 0.5:
+                quality_level = 'acceptable'
+            else:
+                quality_level = 'poor'
+
+            inference_time = (time.time() - start_time) * 1000  # Convert to ms
+
+            return jsonify({
+                'quality_score': round(quality_score, 4),
+                'quality_level': quality_level,
+                'threshold_met': quality_score >= 0.5,
+                'inference_time_ms': round(inference_time, 2)
+            }), 200
+
+        except Exception as e:
+            return jsonify({'error': f'Inference failed: {str(e)}'}), 500
+
+    except Exception as e:
+        return jsonify({'error': f'Unexpected error: {str(e)}'}), 500
+
+@app.route('/health', methods=['GET'])
+def health_check():
+    """Health check endpoint"""
+    return jsonify({
+        'status': 'healthy',
+        'service': 'facial-data-collection-backend',
+        'version': '1.0.0'
+    }), 200
+
+# ============================================================================
+# Main
+# ============================================================================
+
+if __name__ == '__main__':
+    print("=" * 60)
+    print("Facial Data Collection - Backend Server")
+    print("=" * 60)
+    print(f"Data directory: {BASE_DATA_DIR.absolute()}")
+    print(f"Server starting on http://localhost:5001") #claude - Changed from 5000
+    print("=" * 60)
+
+    app.run(host='0.0.0.0', port=5001, debug=True) #claude - Changed from 5000

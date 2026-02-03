@@ -1,0 +1,778 @@
+/* Facial Data Collection - Mobile-First Styles */
+
+/* CSS Variables for theming */
+:root {
+    --color-primary: #007aff;
+    --color-primary-dark: #0051d5;
+    --color-success: #34c759;
+    --color-danger: #ff3b30;
+    --color-warning: #ff9500;
+    --color-bg-dark: #1a1a1a;
+    --color-bg-medium: #2a2a2a;
+    --color-bg-light: #3a3a3a;
+    --color-text: #ffffff;
+    --color-text-dim: #aaaaaa;
+    --spacing-xs: 8px;
+    --spacing-sm: 12px;
+    --spacing-md: 16px;
+    --spacing-lg: 24px;
+    --spacing-xl: 32px;
+    --border-radius: 12px;
+    --transition: all 0.3s ease;
+}
+
+/* Reset and base styles */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    background: var(--color-bg-dark);
+    color: var(--color-text);
+    min-height: 100vh;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+/* Safe area padding for notch devices */
+body {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+}
+
+/* Container */
+.container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: var(--spacing-md);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Remove container padding in fullscreen mode */ /*#claude v26*/
+:fullscreen .container, /*#claude v26*/
+:-webkit-full-screen .container, /*#claude v26*/
+:-moz-full-screen .container { /*#claude v26*/
+    padding: 0; /*#claude v26*/
+    max-width: 100%; /*#claude v26*/
+    height: 100vh; /*#claude v29 - Force full viewport height*/
+} /*#claude v26*/
+
+/* Recording screen takes full height */ /*#claude v26*/
+#recordingScreen { /*#claude v26*/
+    display: flex; /*#claude v26*/
+    flex-direction: column; /*#claude v26*/
+    height: 100%; /*#claude v26*/
+    padding: 0; /*#claude v26*/
+    position: relative; /*#claude v30 - For absolute positioning of children*/
+} /*#claude v26*/
+
+/* In fullscreen, recordingScreen takes entire viewport */ /*#claude v30*/
+:fullscreen #recordingScreen, /*#claude v30*/
+:-webkit-full-screen #recordingScreen, /*#claude v30*/
+:-moz-full-screen #recordingScreen { /*#claude v30*/
+    height: 100vh; /*#claude v30*/
+    width: 100vw; /*#claude v30*/
+} /*#claude v30*/
+
+/* Progress Indicator */ /*#claude*/
+.progress-indicator { /*#claude*/
+    background: var(--color-bg-medium); /*#claude*/
+    padding: var(--spacing-sm); /*#claude*/
+    border-radius: var(--border-radius); /*#claude*/
+    text-align: center; /*#claude*/
+    margin-bottom: var(--spacing-md); /*#claude*/
+    font-size: 14px; /*#claude*/
+    font-weight: 600; /*#claude*/
+    color: var(--color-primary); /*#claude*/
+    border: 1px solid var(--color-primary); /*#claude*/
+} /*#claude*/
+
+.progress-indicator.hidden { /*#claude*/
+    display: none; /*#claude*/
+} /*#claude*/
+
+/* Progress indicator overlay - inside video at bottom right */ /*#claude v23*/
+.progress-indicator-overlay { /*#claude v23*/
+    position: absolute; /*#claude v23*/
+    bottom: 50px; /*#claude v23 - Above progress bar*/
+    right: 10px; /*#claude v23*/
+    background: rgba(0, 0, 0, 0.7); /*#claude v23*/
+    padding: 6px 12px; /*#claude v23*/
+    border-radius: 6px; /*#claude v23*/
+    font-size: 12px; /*#claude v23*/
+    font-weight: 600; /*#claude v23*/
+    color: var(--color-primary); /*#claude v23*/
+    z-index: 11; /*#claude v23*/
+    opacity: 0.8; /*#claude v23*/
+    pointer-events: none; /*#claude v23*/
+    transition: opacity 0.3s ease; /*#claude v23*/
+} /*#claude v23*/
+
+/* Video container - takes most of screen */
+.video-container {
+    position: relative;
+    background: #000;
+    overflow: hidden;
+    width: 100%;
+    flex: 1; /*#claude v29 - Take all available flex space*/
+    display: flex;
+    align-items: flex-start; /* V48: Align video to TOP */
+    justify-content: center;
+}
+
+/* V74: Normal mode (when fullscreen denied or not active) - simple relative layout */ /*#claude v74*/
+#recordingScreen:not(.hidden) .video-container { /*#claude v31*/
+    position: relative; /*#claude v74 - Relative flow when not fullscreen*/
+    width: 100%; /*#claude v74*/
+    height: 42vh; /*#claude v74 - Reduced to half size*/
+    max-height: 42vh; /*#claude v74 - Reduced to half size*/
+    align-items: flex-start; /*#claude v32 - Align video to TOP, not center*/
+} /*#claude v31*/
+
+/* V39: When #recordingScreen itself is fullscreen, force video-container to 42vh */ /*#claude v39*/
+/* V48: Added explicit positioning to place video above system UI (like Opera) */
+#recordingScreen:fullscreen .video-container,
+#recordingScreen:-webkit-full-screen .video-container,
+#recordingScreen:-moz-full-screen .video-container {
+    position: fixed !important; /* V48: Force fixed positioning */
+    top: 0 !important; /* V48: Absolute top (above system UI) */
+    left: 0 !important; /* V48: Absolute left */
+    right: 0 !important; /* V48: Absolute right */
+    width: 100vw !important; /* V48: Full viewport width */
+    height: 42vh !important;
+    max-height: 42vh !important;
+    background: #000; /* Ensure black background for remaining space */
+    /* V48: Chrome Android - extend into safe area (notch/status bar area) */
+    padding-top: env(safe-area-inset-top, 0);
+    margin-top: calc(-1 * env(safe-area-inset-top, 0)); /* Negative margin to truly extend to top */
+}
+
+video {
+    width: 100%;
+    height: 100%;
+    object-fit: contain; /* V48: Maintain aspect ratio, show full video */
+    object-position: top center; /* V48: Align video to TOP of container */
+    display: block;
+    transform: scaleX(-1); /* Mirror video horizontally like selfie camera */
+    -webkit-transform: scaleX(-1); /* Safari compatibility */
+}
+
+/* V75: REMOVED iPad object-fit: cover - it was cropping the video when fullscreen denied */ /*#claude v75*/
+/* Keep object-fit: contain on ALL devices to show full video without cropping */ /*#claude v75*/
+@media (min-width: 768px) and (max-width: 1366px) { /*#claude v74 - Tablet range*/
+    video { /*#claude v74*/
+        max-height: 80vh; /*#claude v74 - Limit video height on tablets*/
+        object-fit: contain; /*#claude v75 - CHANGED from cover to contain - show full video without cropping*/
+    } /*#claude v74*/
+} /*#claude v74*/
+
+/* Video Stats Display */ /*#claude v26*/
+.video-stats { /*#claude v26*/
+    position: relative; /*#claude v29 - Moved below video container, not overlay*/
+    margin-top: 15px; /*#claude - Space between video and stats*/
+    background: rgba(0, 0, 0, 0.7); /*#claude v26*/
+    padding: var(--spacing-sm) var(--spacing-md); /*#claude v26*/
+    border-radius: var(--border-radius); /*#claude v26*/
+    font-size: 12px; /*#claude v26*/
+    color: #fff; /*#claude v26*/
+} /*#claude v26*/
+
+.video-stats .stats-row { /*#claude v26*/
+    display: flex; /*#claude v26*/
+    justify-content: space-between; /*#claude v26*/
+    padding: 4px 0; /*#claude v26*/
+} /*#claude v26*/
+
+.video-stats .stats-row span:first-child { /*#claude v26*/
+    color: #aaa; /*#claude v26*/
+} /*#claude v26*/
+
+.video-stats .stats-row span:last-child { /*#claude v26*/
+    color: #00d4ff; /*#claude v26*/
+    font-weight: 600; /*#claude v26*/
+} /*#claude v26*/
+
+/* Status message overlay - shown inside video */ /*#claude v25*/
+.status-message-overlay { /*#claude v25*/
+    position: absolute; /*#claude v25*/
+    top: 50%; /*#claude v25*/
+    left: 50%; /*#claude v25*/
+    transform: translate(-50%, -50%); /*#claude v25*/
+    background: rgba(0, 0, 0, 0.85); /*#claude v25*/
+    color: white; /*#claude v25*/
+    padding: var(--spacing-md) var(--spacing-lg); /*#claude v25*/
+    border-radius: var(--border-radius); /*#claude v25*/
+    font-size: 16px; /*#claude v25*/
+    font-weight: 600; /*#claude v25*/
+    z-index: 20; /*#claude v25*/
+    text-align: center; /*#claude v25*/
+    max-width: 80%; /*#claude v25*/
+    pointer-events: none; /*#claude v25*/
+} /*#claude v25*/
+
+.status-message-overlay.info { background: rgba(0, 122, 255, 0.9); } /*#claude v25*/
+.status-message-overlay.success { background: rgba(52, 199, 89, 0.9); } /*#claude v25*/
+.status-message-overlay.warning { background: rgba(255, 149, 0, 0.9); } /*#claude v25*/
+.status-message-overlay.error { background: rgba(255, 59, 48, 0.9); } /*#claude v25*/
+
+/* Text overlay - positioned in CENTER of video */ /*#claude v32*/
+.text-overlay-top {
+    position: absolute;
+    top: 37%; /*#claude v48 - Position in middle of actual video (which is in top 85vh)*/
+    left: 50%; /*#claude v32*/
+    transform: translate(-50%, -50%); /*#claude v32 - Center both axes*/
+    background: rgba(0, 0, 0, 0.90); /*#claude v76 - More opaque for visibility*/
+    padding: var(--spacing-lg) var(--spacing-xl); /*#claude v32*/
+    border-radius: var(--border-radius); /*#claude v32*/
+    border: 2px solid #00ff00; /*#claude v76 - Green border for debugging visibility*/
+    text-align: center;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    z-index: 150; /*#claude v76 - Higher z-index, below countdown (200) but well above video (11)*/
+    pointer-events: none;
+    max-width: 80%; /*#claude v32*/
+}
+
+.text-overlay-top.visible {
+    opacity: 1 !important; /*#claude v76 - Force opacity*/
+    visibility: visible !important; /*#claude v76*/
+}
+
+.text-overlay-top div {
+    font-size: 24px; /*#claude v76 - Larger text*/
+    font-weight: 700; /*#claude v76 - Bolder*/
+    margin: 0;
+    line-height: 1.3;
+    color: #ffff00; /*#claude v76 - Bright yellow*/
+    text-shadow: 0 0 10px rgba(255,255,0,0.8), 0 2px 8px rgba(0, 0, 0, 0.8); /*#claude v76 - Glow effect*/
+    padding: 8px 0;
+}
+
+/* Recording indicator */
+.recording-indicator {
+    position: absolute;
+    top: var(--spacing-md);
+    left: var(--spacing-md);
+    background: var(--color-danger);
+    color: white;
+    padding: var(--spacing-sm) var(--spacing-md);
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 14px;
+    display: none;
+    animation: pulse 1.5s infinite;
+    z-index: 10;
+}
+
+.recording-indicator.active {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.recording-indicator::before {
+    content: '';
+    width: 10px;
+    height: 10px;
+    background: white;
+    border-radius: 50%;
+    animation: blink 1.5s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+}
+
+@keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+}
+
+/* Countdown overlay */
+.countdown-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.95); /*#claude v76 - More opaque for visibility*/
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 200; /*#claude v76 - Much higher to ensure visibility*/
+}
+
+.countdown-overlay.visible {
+    display: flex !important; /*#claude v76 - Force display*/
+    visibility: visible !important; /*#claude v76*/
+}
+
+.countdown-number {
+    font-size: 120px;
+    font-weight: 700;
+    color: #ffff00; /*#claude v76 - Bright yellow for better visibility*/
+    text-shadow: 0 0 20px rgba(255,255,0,0.8), 0 0 40px rgba(255,255,0,0.5); /*#claude v76 - Glow effect*/
+    animation: countdownPulse 1s ease-out;
+}
+
+@keyframes countdownPulse {
+    0% {
+        transform: scale(0.5);
+        opacity: 0;
+    }
+    50% {
+        transform: scale(1.2);
+    }
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+/* Progress indicator */
+.progress-bar {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.2);
+    display: none;
+    z-index: 10;
+}
+
+.progress-bar.visible {
+    display: block;
+}
+
+.progress-fill {
+    height: 100%;
+    background: var(--color-primary);
+    width: 0%;
+    transition: width 0.1s linear;
+}
+
+/* Status message */
+.status-message {
+    background: var(--color-bg-medium);
+    padding: var(--spacing-md);
+    border-radius: var(--border-radius);
+    margin-bottom: var(--spacing-lg);
+    text-align: center;
+    font-size: 14px;
+}
+
+.status-message.warning {
+    background: rgba(255, 149, 0, 0.2);
+    border: 1px solid var(--color-warning);
+    color: var(--color-warning);
+}
+
+.status-message.error {
+    background: rgba(255, 59, 48, 0.2);
+    border: 1px solid var(--color-danger);
+    color: var(--color-danger);
+}
+
+.status-message.success {
+    background: rgba(52, 199, 89, 0.2);
+    border: 1px solid var(--color-success);
+    color: var(--color-success);
+}
+
+/* Buttons */
+.btn {
+    width: 100%;
+    padding: var(--spacing-md);
+    font-size: 18px;
+    font-weight: 600;
+    border: none;
+    border-radius: var(--border-radius);
+    cursor: pointer;
+    transition: var(--transition);
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.btn-primary {
+    background: var(--color-primary);
+    color: white;
+}
+
+.btn-primary:active:not(:disabled) {
+    background: var(--color-primary-dark);
+    transform: scale(0.98);
+}
+
+.btn-success {
+    background: var(--color-success);
+    color: white;
+}
+
+.btn-success:active:not(:disabled) {
+    background: #28a745;
+    transform: scale(0.98);
+}
+
+.btn-danger {
+    background: var(--color-danger);
+    color: white;
+}
+
+.btn-danger:active:not(:disabled) {
+    background: #c7221a;
+    transform: scale(0.98);
+}
+
+.btn-secondary {
+    background: var(--color-bg-medium);
+    color: var(--color-text);
+    border: 1px solid var(--color-bg-light);
+}
+
+.btn-secondary:active:not(:disabled) {
+    background: var(--color-bg-light);
+    transform: scale(0.98);
+}
+
+/* Button group */
+.button-group {
+    display: flex;
+    gap: var(--spacing-md);
+    margin-bottom: var(--spacing-md);
+}
+
+.button-group .btn {
+    flex: 1;
+}
+
+/* Control buttons in recording screen - fixed at bottom of viewport */ /*#claude v29, v33*/
+#recordingScreen #controlButtons { /*#claude v29*/
+    position: fixed; /*#claude v33 - Fixed to viewport bottom*/
+    bottom: 0; /*#claude v29*/
+    left: 0; /*#claude v29*/
+    right: 0; /*#claude v29*/
+    margin: 0; /*#claude v29*/
+    padding: var(--spacing-md); /*#claude v29*/
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.9) 0%, transparent 100%); /*#claude v29*/
+    z-index: 20; /*#claude v31 - increased to stay above video-container*/
+} /*#claude v29*/
+
+/* Instructions screen */
+.instruction-screen {
+    display: none;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    padding: var(--spacing-xl);
+}
+
+.instruction-screen.visible {
+    display: flex;
+}
+
+.instruction-screen h1 {
+    font-size: 32px;
+    margin-bottom: var(--spacing-md);
+}
+
+.instruction-screen p {
+    font-size: 18px;
+    color: var(--color-text-dim);
+    margin-bottom: var(--spacing-xl);
+    line-height: 1.6;
+}
+
+.instruction-list {
+    background: var(--color-bg-medium);
+    padding: var(--spacing-xl);
+    border-radius: var(--border-radius);
+    border: 2px solid var(--color-primary);
+    text-align: center;
+    margin-bottom: var(--spacing-xl);
+    width: 100%;
+    box-shadow: 0 4px 12px rgba(0, 122, 255, 0.2);
+}
+
+.instruction-list ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.instruction-list li {
+    margin-bottom: var(--spacing-md);
+    line-height: 1.6;
+    text-align: center;
+}
+
+/* Decision screen (Accept/Retake) */
+.decision-screen {
+    display: none;
+    flex-direction: column;
+    justify-content: center;
+    padding: var(--spacing-xl);
+}
+
+.decision-screen.visible {
+    display: flex;
+}
+
+.decision-screen h2 {
+    font-size: 28px;
+    text-align: center;
+    margin-bottom: var(--spacing-md);
+}
+
+.decision-screen p {
+    text-align: center;
+    color: var(--color-text-dim);
+    margin-bottom: var(--spacing-xl);
+}
+
+/* Completion screen */ /*#claude*/
+.completion-screen { /*#claude*/
+    display: flex; /*#claude*/
+    flex-direction: column; /*#claude*/
+    justify-content: center; /*#claude*/
+    align-items: center; /*#claude*/
+    text-align: center; /*#claude*/
+    padding: var(--spacing-xl); /*#claude*/
+} /*#claude*/
+
+.completion-screen h1 { /*#claude*/
+    font-size: 32px; /*#claude*/
+    color: var(--color-success); /*#claude*/
+    margin-bottom: var(--spacing-md); /*#claude*/
+} /*#claude*/
+
+.completion-screen p { /*#claude*/
+    font-size: 18px; /*#claude*/
+    color: var(--color-text-dim); /*#claude*/
+    margin-bottom: var(--spacing-xl); /*#claude*/
+} /*#claude*/
+
+.session-summary { /*#claude*/
+    background: var(--color-bg-medium); /*#claude*/
+    padding: var(--spacing-xl); /*#claude*/
+    border-radius: var(--border-radius); /*#claude*/
+    border: 2px solid var(--color-success); /*#claude*/
+    margin-bottom: var(--spacing-xl); /*#claude*/
+    width: 100%; /*#claude*/
+    max-width: 500px; /*#claude*/
+} /*#claude*/
+
+.summary-item { /*#claude*/
+    display: flex; /*#claude*/
+    justify-content: space-between; /*#claude*/
+    padding: var(--spacing-sm) 0; /*#claude*/
+    border-bottom: 1px solid var(--color-bg-light); /*#claude*/
+} /*#claude*/
+
+.summary-item:last-child { /*#claude*/
+    border-bottom: none; /*#claude*/
+} /*#claude*/
+
+.status-complete { /*#claude*/
+    color: var(--color-success); /*#claude*/
+    font-weight: 600; /*#claude*/
+} /*#claude*/
+
+.details-section { /*#claude*/
+    width: 100%; /*#claude*/
+    max-width: 600px; /*#claude*/
+    margin-top: var(--spacing-xl); /*#claude*/
+} /*#claude*/
+
+.details-section h2 { /*#claude*/
+    font-size: 24px; /*#claude*/
+    margin-bottom: var(--spacing-lg); /*#claude*/
+} /*#claude*/
+
+.video-list { /*#claude*/
+    display: flex; /*#claude*/
+    flex-direction: column; /*#claude*/
+    gap: var(--spacing-md); /*#claude*/
+} /*#claude*/
+
+.video-item { /*#claude*/
+    background: var(--color-bg-medium); /*#claude*/
+    padding: var(--spacing-md); /*#claude*/
+    border-radius: var(--border-radius); /*#claude*/
+    border: 1px solid var(--color-bg-light); /*#claude*/
+} /*#claude*/
+
+.video-number { /*#claude*/
+    font-size: 18px; /*#claude*/
+    font-weight: 600; /*#claude*/
+    color: var(--color-primary); /*#claude*/
+    margin-bottom: var(--spacing-sm); /*#claude*/
+} /*#claude*/
+
+.video-info { /*#claude*/
+    font-size: 14px; /*#claude*/
+    color: var(--color-text-dim); /*#claude*/
+} /*#claude*/
+
+.video-info div { /*#claude*/
+    margin-bottom: var(--spacing-xs); /*#claude*/
+} /*#claude*/
+
+/* Hidden utility class */
+.hidden {
+    display: none !important;
+}
+
+/* Tablet and larger */
+@media (min-width: 768px) {
+    .container {
+        padding: var(--spacing-lg);
+    }
+
+    .text-overlay h2 {
+        font-size: 28px;
+    }
+
+    .countdown-number {
+        font-size: 150px;
+    }
+
+    .btn {
+        font-size: 20px;
+        padding: var(--spacing-lg);
+    }
+}
+
+/* Landscape mode adjustments */
+@media (orientation: landscape) and (max-height: 600px) {
+    .video-container {
+        max-height: 32vh; /* Reduced to half size - was 65vh */
+    }
+
+    .text-overlay {
+        bottom: 10%;
+        padding: var(--spacing-md) var(--spacing-lg);
+    }
+
+    .text-overlay h2 {
+        font-size: 20px;
+    }
+}
+
+/* Upload Modal (Blocking) */ /*#claude*/
+.upload-modal { /*#claude*/
+    position: fixed; /*#claude*/
+    top: 0; /*#claude*/
+    left: 0; /*#claude*/
+    width: 100%; /*#claude*/
+    height: 100%; /*#claude*/
+    background: rgba(0, 0, 0, 0.95); /*#claude*/
+    display: flex; /*#claude*/
+    align-items: center; /*#claude*/
+    justify-content: center; /*#claude*/
+    z-index: 10000; /*#claude*/
+    backdrop-filter: blur(10px); /*#claude*/
+} /*#claude*/
+
+.upload-modal.hidden { /*#claude*/
+    display: none; /*#claude*/
+} /*#claude*/
+
+.upload-modal-content { /*#claude*/
+    background: var(--color-bg-medium); /*#claude*/
+    border-radius: var(--border-radius); /*#claude*/
+    padding: var(--spacing-xl); /*#claude*/
+    max-width: 400px; /*#claude*/
+    width: 90%; /*#claude*/
+    text-align: center; /*#claude*/
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5); /*#claude*/
+} /*#claude*/
+
+.upload-modal-content h2 { /*#claude*/
+    margin-bottom: var(--spacing-md); /*#claude*/
+    color: var(--color-primary); /*#claude*/
+    font-size: 24px; /*#claude*/
+} /*#claude*/
+
+.upload-modal-content p { /*#claude*/
+    margin-bottom: var(--spacing-md); /*#claude*/
+    color: var(--color-text-dim); /*#claude*/
+    font-size: 16px; /*#claude*/
+} /*#claude*/
+
+.upload-progress-container { /*#claude*/
+    width: 100%; /*#claude*/
+    height: 8px; /*#claude*/
+    background: var(--color-bg-light); /*#claude*/
+    border-radius: 4px; /*#claude*/
+    overflow: hidden; /*#claude*/
+    margin: var(--spacing-md) 0; /*#claude*/
+} /*#claude*/
+
+.upload-progress-bar { /*#claude*/
+    height: 100%; /*#claude*/
+    background: linear-gradient(90deg, var(--color-primary), var(--color-success)); /*#claude*/
+    width: 0%; /*#claude*/
+    transition: width 0.3s ease; /*#claude*/
+} /*#claude*/
+
+.upload-percent { /*#claude*/
+    font-size: 32px; /*#claude*/
+    font-weight: bold; /*#claude*/
+    color: var(--color-primary); /*#claude*/
+    margin-top: var(--spacing-sm); /*#claude*/
+} /*#claude*/
+
+/* Background Upload Indicator */ /*#claude*/
+.upload-indicator { /*#claude*/
+    position: fixed; /*#claude*/
+    top: 16px; /*#claude*/
+    right: 16px; /*#claude*/
+    padding: 8px 12px; /*#claude*/
+    border-radius: 8px; /*#claude*/
+    font-size: 12px; /*#claude*/
+    font-weight: 600; /*#claude*/
+    z-index: 1000; /*#claude*/
+    transition: all 0.3s ease; /*#claude*/
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3); /*#claude*/
+} /*#claude*/
+
+.upload-indicator.hidden { /*#claude*/
+    display: none; /*#claude*/
+} /*#claude*/
+
+.upload-indicator.idle { /*#claude*/
+    background: rgba(52, 199, 89, 0.15); /*#claude*/
+    color: var(--color-success); /*#claude*/
+    opacity: 0.85; /*#claude*/
+} /*#claude*/
+
+.upload-indicator.active { /*#claude*/
+    background: rgba(0, 122, 255, 0.15); /*#claude*/
+    color: var(--color-primary); /*#claude*/
+    opacity: 1; /*#claude*/
+    animation: pulse 2s infinite; /*#claude*/
+} /*#claude*/
+
+.upload-indicator.error { /*#claude*/
+    background: rgba(255, 149, 0, 0.15); /*#claude*/
+    color: var(--color-warning); /*#claude*/
+    opacity: 1; /*#claude*/
+} /*#claude*/
+
+@keyframes pulse { /*#claude*/
+    0%, 100% { opacity: 1; } /*#claude*/
+    50% { opacity: 0.6; } /*#claude*/
+} /*#claude*/

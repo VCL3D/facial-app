@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="FaceData">
+    <meta name="mobile-web-app-capable" content="yes"> <!-- V48: Chrome fullscreen -->
+    <title>Recording - Facial Data Collection</title>
+
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="/manifest.json">
+    <link rel="apple-touch-icon" href="/icons/icon-192.png">
+    <meta name="theme-color" content="#007aff">
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+    <!-- VERSION BADGE - Hidden --> <!--#claude v14, v51: hidden-->
+    <div id="versionBadge" style="position: fixed; bottom: 10px; left: 10px; background: #ff0000; color: white; padding: 5px 10px; border-radius: 5px; font-size: 12px; font-weight: bold; z-index: 9999; display: none;">
+        Loading...
+    </div> <!--#claude v14-->
+
+    <!-- DEBUG PANEL - v82 --> <!--#claude v82: PWA + iOS fullscreen exit+re-enter-->
+    <div id="debugPanel" style="position: fixed; bottom: 10px; left: 10px; right: 10px; background: rgba(0,0,0,0.9); color: #00ff00; padding: 6px 8px; border-radius: 5px; font-size: 10px; line-height: 1.3; font-family: monospace; z-index: 5; max-height: 100px; overflow-y: auto; display: block; border: 2px solid #0066ff;">
+        <div style="color: #0066ff; font-weight: bold; margin-bottom: 3px; font-size: 11px;">V93 DEBUG (Button Fix on 2nd Recording)</div>
+        <div id="debugMessages"></div>
+    </div> <!--#claude v82: PWA blocking + iOS fullscreen exit+re-enter fix-->
+
+    <div class="container">
+        <!-- Background Upload Indicator --> <!--#claude-->
+        <div id="uploadIndicator" class="upload-indicator hidden"></div> <!--#claude-->
+
+        <!-- Instruction Screen -->
+        <div id="instructionScreen" class="instruction-screen visible">
+            <h1 id="videoTitle">Video Recording</h1> <!--#claude - Added ID for dynamic title-->
+            <p id="videoDescription">We'll record a short video with live prompts on screen.</p> <!--#claude - Added ID for dynamic description-->
+
+            <!-- Status message for instruction screen -->
+            <div id="instructionStatus" class="status-message hidden"></div>
+
+            <div class="instruction-list">
+                <ul id="instructionList"> <!--#claude - Added ID for dynamic content-->
+                    <li>Keep your screen unlocked during recording</li>
+                    <li>Stay in the app - don't switch tabs</li>
+                    <li>Follow the text prompts shown on screen</li>
+                    <li>You'll get 3 seconds to prepare before recording</li>
+                    <li>Duration: ~45 seconds with live prompts</li>
+                </ul>
+            </div>
+
+            <button id="startBtn" class="btn btn-primary">Start Recording</button>
+            <button onclick="exitToMain()" class="btn" style="background: rgba(255, 59, 48, 0.2); border: 1px solid rgba(255, 59, 48, 0.4); color: #ff3b30; margin-top: 10px;"> <!--#claude v82: Exit button-->
+                ← Back to Main Menu
+            </button> <!--#claude v82-->
+        </div>
+
+        <!-- Recording Screen -->
+        <div id="recordingScreen" class="hidden">
+            <!-- Video container with overlays -->
+            <div class="video-container">
+                <video id="preview" playsinline autoplay muted></video>
+
+                <!-- Status message INSIDE video --> <!--#claude v25-->
+                <div id="statusMessage" class="status-message-overlay hidden"></div> <!--#claude v25-->
+
+                <!-- Text prompt INSIDE video at TOP (near camera) -->
+                <div id="textOverlay" class="text-overlay-top">
+                    <div id="overlayText">Show a happy expression</div>
+                </div>
+
+                <!-- Countdown overlay -->
+                <div id="countdownOverlay" class="countdown-overlay">
+                    <div id="countdownNumber" class="countdown-number">3</div>
+                </div>
+
+                <!-- Progress bar -->
+                <div id="progressBar" class="progress-bar">
+                    <div id="progressFill" class="progress-fill"></div>
+                </div>
+
+                <!-- Progress Indicator - moved inside video as overlay --> <!--#claude v23-->
+                <div id="progressIndicator" class="progress-indicator-overlay"> <!--#claude v23-->
+                    <span id="progressText">Video 1 of 3</span> <!--#claude v23-->
+                </div> <!--#claude v23-->
+            </div> <!--#claude v29 - closes video-container-->
+
+            <!-- Video Stats Display - moved below video container --> <!--#claude v26, v29-->
+            <div id="videoStats" class="video-stats hidden"> <!--#claude v26, v29-->
+            <div class="stats-row"> <!--#claude v26-->
+                <span>Resolution:</span> <span id="statsResolution">-</span> <!--#claude v26-->
+            </div> <!--#claude v26-->
+            <div class="stats-row"> <!--#claude v26-->
+                <span>Frame Rate:</span> <span id="statsFPS">-</span> <!--#claude v26-->
+            </div> <!--#claude v26-->
+            <div class="stats-row"> <!--#claude v26-->
+                <span>Aspect Ratio:</span> <span id="statsAspectRatio">-</span> <!--#claude v26-->
+            </div> <!--#claude v26-->
+            <div class="stats-row"> <!--#claude v26-->
+                <span>Display Size:</span> <span id="statsDisplaySize">-</span> <!--#claude v26-->
+            </div> <!--#claude v26-->
+            </div> <!--#claude v26 - closes videoStats-->
+
+            <!-- Control buttons - OUTSIDE video container, will be positioned as overlay --> <!--#claude v29-->
+            <div id="controlButtons" class="button-group">
+                <button id="stopBtn" class="btn btn-danger hidden">Stop Recording</button>
+            </div>
+        </div> <!--#claude - closes recordingScreen-->
+
+        <!-- Decision Screen (Accept/Retake) -->
+        <div id="decisionScreen" class="decision-screen hidden">
+            <h2>Recording Complete!</h2>
+            <p>Accept this recording or retake?</p>
+
+            <div class="button-group">
+                <button id="retakeBtn" class="btn btn-secondary">🔄 Retake</button>
+                <button id="acceptBtn" class="btn btn-success">✓ Accept</button>
+            </div>
+
+            <button onclick="exitToMainFromDecision()" class="btn" style="background: rgba(255, 59, 48, 0.2); border: 1px solid rgba(255, 59, 48, 0.4); color: #ff3b30; margin-top: 15px; width: 100%;"> <!--#claude v82: Exit button on decision screen-->
+                ← Exit to Main Menu
+            </button> <!--#claude v82-->
+        </div>
+
+        <!-- Upload Modal (Blocking) --> <!--#claude-->
+        <div id="uploadModal" class="upload-modal hidden"> <!--#claude-->
+            <div class="upload-modal-content"> <!--#claude-->
+                <h2 id="uploadModalTitle">📤 Uploading Video</h2> <!--#claude-->
+                <p id="uploadModalText">Preparing upload...</p> <!--#claude-->
+                <div class="upload-progress-container"> <!--#claude-->
+                    <div id="uploadModalProgress" class="upload-progress-bar"></div> <!--#claude-->
+                </div> <!--#claude-->
+                <p id="uploadModalPercent" class="upload-percent">0%</p> <!--#claude-->
+            </div> <!--#claude-->
+        </div> <!--#claude-->
+    </div>
+
+    <script src="/js/dexie.min.js"></script>
+    <script src="/js/storage.js?v=20"></script> <!--#claude-->
+    <script src="/js/state.js?v=20"></script>
+    <script src="/js/uploader.js?v=20"></script>
+    <script src="/js/upload-manager.js?v=20"></script> <!--#claude - v19: Badge moved to bottom-left-->
+    <script src="/js/logger.js?v=51"></script> <!--#claude v51: Client-side logging-->
+
+    <!--#claude v21: INLINE INFLATION - FAST (no crypto.getRandomValues blocking)-->
+    <script>
+        // INLINE INFLATION CODE - INSTANT padding with zeros (no blocking crypto)
+        window.INFLATE_VIDEO = function(blob, targetMB) {
+            console.log('%c🧪 INLINE INFLATION ACTIVE (FAST)', 'background: #ff0000; color: #ffffff; font-size: 20px; font-weight: bold; padding: 10px;');
+            console.log('  Original: ' + (blob.size / 1024 / 1024).toFixed(2) + ' MB');
+            console.log('  Target: ' + targetMB + ' MB');
+
+            const targetBytes = targetMB * 1024 * 1024;
+            const paddingNeeded = Math.max(0, targetBytes - blob.size);
+
+            if (paddingNeeded > 0) {
+                console.log('  Adding ' + (paddingNeeded / 1024 / 1024).toFixed(2) + ' MB padding (zeros - instant!)...');
+
+                // V21: Use zeros instead of crypto random - INSTANT on mobile!
+                const paddingArray = new Uint8Array(paddingNeeded); // Already zeros by default
+                const paddingBlob = new Blob([paddingArray], { type: 'application/octet-stream' });
+
+                const inflatedBlob = new Blob([blob, paddingBlob], { type: blob.type });
+                console.log('  ✅ Inflated to: ' + (inflatedBlob.size / 1024 / 1024).toFixed(2) + ' MB');
+
+                return inflatedBlob;
+            }
+
+            console.log('  ℹ️ No inflation needed (already large enough)');
+            return blob;
+        };
+
+        console.log('%c✅ INLINE INFLATION READY - 50MB TARGET (FAST MODE)', 'background: #00ff00; color: #000000; font-size: 16px; font-weight: bold; padding: 5px;');
+    </script>
+
+    <!--#claude v41: Prevent browser back navigation during recording session-->
+    <script>
+        // V41: Trap back button and swipe-left gestures to prevent accidental navigation
+        (function preventBackNavigation() {
+            // Push a dummy state so back button has somewhere to go
+            history.pushState(null, '', window.location.href);
+
+            // Listen for back button / swipe left
+            window.addEventListener('popstate', function(event) {
+                console.warn('⚠️ User tried to navigate back during recording session');
+
+                // Push state again to "trap" them on this page
+                history.pushState(null, '', window.location.href);
+
+                // Show warning
+                alert('⚠️ Please do not use the back button during recording. Use the on-screen controls to navigate.');
+            });
+
+            console.log('🔒 V41: Back navigation prevention active');
+        })();
+    </script>
+
+    <!--#claude v25: Runtime cache-busting with Date.now() to force fresh load EVERY time-->
+    <script>
+        // Force absolute cache bypass - different URL every page load
+        const recorderScript = document.createElement('script');
+        recorderScript.src = '/js/recorder-v20.js?nocache=' + Date.now();
+        document.body.appendChild(recorderScript);
+        console.log('📜 Loading recorder-v20.js with cache-busting: ' + recorderScript.src);
+    </script>
+
+    <!-- V82: Exit Functions --> <!--#claude v82: Exit to main menu functions-->
+    <script>
+        // Exit to main menu from instruction screen
+        function exitToMain() {
+            if (confirm('Return to main menu? You can continue recording later.')) {
+                window.location.href = '/index.html';
+            }
+        }
+
+        // Exit to main menu from decision screen (after recording)
+        function exitToMainFromDecision() {
+            if (confirm('⚠️ Return to main menu?\n\nThe current recording will be discarded. Are you sure?')) {
+                // Discard current recording and go back
+                window.location.href = '/index.html';
+            }
+        }
+    </script> <!--#claude v82-->
+
+    <!-- V82: Service Worker Registration -->
+    <script>
+        // Register service worker for PWA support
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/service-worker.js?v=93')
+                .then(reg => console.log('✅ V82: Service Worker registered:', reg.scope))
+                .catch(err => console.warn('⚠️ V82: Service Worker registration failed:', err));
+        }
+    </script>
+</body>
+</html>

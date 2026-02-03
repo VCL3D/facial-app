@@ -1,0 +1,3 @@
+[submodule "ai-models/Efficient-FIQA"]
+	path = ai-models/Efficient-FIQA
+	url = https://github.com/sunwei925/Efficient-FIQA.git

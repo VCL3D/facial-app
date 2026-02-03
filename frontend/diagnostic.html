@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cache Diagnostic</title>
+    <style>
+        body {
+            font-family: monospace;
+            background: #1a1a2e;
+            color: #fff;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.05);
+            padding: 30px;
+            border-radius: 16px;
+        }
+        h1 { color: #4CAF50; }
+        .section {
+            margin: 20px 0;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+        }
+        .good { color: #4CAF50; }
+        .bad { color: #f44336; }
+        button {
+            background: #007aff;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            margin: 10px 5px;
+        }
+        button:hover { background: #0056b3; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Cache Diagnostic Tool</h1>
+
+        <div class="section">
+            <h2>Service Worker Status</h2>
+            <div id="swStatus">Checking...</div>
+        </div>
+
+        <div class="section">
+            <h2>Cached Files</h2>
+            <div id="cacheStatus">Checking...</div>
+        </div>
+
+        <div class="section">
+            <h2>Session Storage</h2>
+            <div id="storageStatus">Checking...</div>
+        </div>
+
+        <div class="section">
+            <h2>Recorder.js Content Check</h2>
+            <div id="recorderCheck">Checking...</div>
+        </div>
+
+        <button onclick="checkRecorderContent()">Check Recorder.js</button>
+        <button onclick="window.location.href='/unregister-sw.html'">Clear All Caches</button>
+        <button onclick="window.location.href='/'">Back to Home</button>
+    </div>
+
+    <script>
+        // Check service worker
+        async function checkServiceWorker() {
+            const div = document.getElementById('swStatus');
+            if ('serviceWorker' in navigator) {
+                const registrations = await navigator.serviceWorker.getRegistrations();
+                if (registrations.length > 0) {
+                    div.innerHTML = `<span class="good">✅ Service Worker active: ${registrations.length} registration(s)</span>`;
+                    registrations.forEach((reg, i) => {
+                        div.innerHTML += `<br>Registration ${i+1}: ${reg.scope}`;
+                        if (reg.active) {
+                            div.innerHTML += `<br>  Active: ${reg.active.scriptURL}`;
+                        }
+                    });
+                } else {
+                    div.innerHTML = `<span class="bad">❌ No service worker registered</span>`;
+                }
+            } else {
+                div.innerHTML = `<span class="bad">❌ Service Worker not supported</span>`;
+            }
+        }
+
+        // Check cached files
+        async function checkCaches() {
+            const div = document.getElementById('cacheStatus');
+            if ('caches' in window) {
+                const cacheNames = await caches.keys();
+                div.innerHTML = `<strong>Cache names (${cacheNames.length}):</strong><br>`;
+
+                for (const cacheName of cacheNames) {
+                    div.innerHTML += `<br><span class="${cacheName.includes('v5') ? 'good' : 'bad'}">${cacheName}</span>`;
+
+                    const cache = await caches.open(cacheName);
+                    const keys = await cache.keys();
+
+                    // Check for specific files
+                    const hasCompleteV2 = keys.some(req => req.url.includes('complete-v2.html'));
+                    const hasRecorderV4 = keys.some(req => req.url.includes('recorder.js?v=4'));
+
+                    div.innerHTML += `<br>  - Files: ${keys.length}`;
+                    div.innerHTML += `<br>  - Has complete-v2.html: <span class="${hasCompleteV2 ? 'good' : 'bad'}">${hasCompleteV2 ? 'YES ✅' : 'NO ❌'}</span>`;
+                    div.innerHTML += `<br>  - Has recorder.js?v=4: <span class="${hasRecorderV4 ? 'good' : 'bad'}">${hasRecorderV4 ? 'YES ✅' : 'NO ❌'}</span>`;
+                }
+            } else {
+                div.innerHTML = `<span class="bad">❌ Cache API not supported</span>`;
+            }
+        }
+
+        // Check localStorage
+        function checkStorage() {
+            const div = document.getElementById('storageStatus');
+            const keys = Object.keys(localStorage);
+            div.innerHTML = `<strong>localStorage keys (${keys.length}):</strong><br>`;
+
+            keys.forEach(key => {
+                const value = localStorage.getItem(key);
+                div.innerHTML += `<br>${key}: ${value.substring(0, 50)}${value.length > 50 ? '...' : ''}`;
+            });
+
+            const sessionId = localStorage.getItem('backendSessionId');
+            if (sessionId) {
+                div.innerHTML += `<br><br><span class="good">✅ Backend session: ${sessionId}</span>`;
+            } else {
+                div.innerHTML += `<br><br><span class="bad">❌ No backend session in storage</span>`;
+            }
+        }
+
+        // Check if recorder.js has the updated code
+        async function checkRecorderContent() {
+            const div = document.getElementById('recorderCheck');
+            div.innerHTML = 'Fetching recorder.js...';
+
+            try {
+                const response = await fetch('/js/recorder.js?v=4&nocache=' + Date.now());
+                const text = await response.text();
+
+                const hasCompleteV2 = text.includes('complete-v2.html');
+
+                div.innerHTML = `<strong>Recorder.js Analysis:</strong><br>`;
+                div.innerHTML += `File size: ${text.length} bytes<br>`;
+                div.innerHTML += `Contains "complete-v2.html": <span class="${hasCompleteV2 ? 'good' : 'bad'}">${hasCompleteV2 ? 'YES ✅' : 'NO ❌'}</span><br>`;
+
+                if (hasCompleteV2) {
+                    const matches = text.match(/complete-v2\.html/g);
+                    div.innerHTML += `Found ${matches.length} occurrence(s) of complete-v2.html`;
+                } else {
+                    div.innerHTML += `<br><span class="bad">❌ ERROR: Recorder.js still has old code! Browser is serving cached version.</span>`;
+                }
+            } catch (err) {
+                div.innerHTML = `<span class="bad">❌ Error: ${err.message}</span>`;
+            }
+        }
+
+        // Run all checks on load
+        window.addEventListener('load', async () => {
+            await checkServiceWorker();
+            await checkCaches();
+            checkStorage();
+            await checkRecorderContent();
+        });
+    </script>
+</body>
+</html>
