@@ -57,3 +57,6 @@ ai-models/**/*.onnx
 ai-models/**/*.pt
 ai-models/**/*.h5
 ai-models/**/*.pb
+
+# Documentation (markdown files)
+*.md
